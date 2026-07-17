@@ -16,9 +16,9 @@ function gadget:GetInfo()
 	}
 end
 
-local success, mapinfo= pcall(VFS.Include,"mapinfo.lua") -- load mapinfo.lua confs
+local success, mapinfo= pcall(VFS.Include, "mapinfo.lua", nil, VFS.MAP) -- load mapinfo.lua confs
 if not success or mapinfo == nil then
-  Spring.Echo("Map VoidWater failed to load the mapinfo.lua")
+  Spring.Echo("Map VoidWater failed to load mapinfo.lua: " .. tostring(mapinfo))
   return
 end
 

@@ -44,12 +44,12 @@ local CMD_UNIT_SET_TARGET_NO_GROUND = GameCMD.UNIT_SET_TARGET_NO_GROUND
 local CMD_UNIT_SET_TARGET_RECTANGLE = GameCMD.UNIT_SET_TARGET_RECTANGLE 
 local CMDTYPE_ICON_MAP = CMDTYPE.ICON_MAP
 
-local success, mapinfo = pcall(VFS.Include,"mapinfo.lua") -- load mapinfo.lua confs
+local success, mapinfo = pcall(VFS.Include, "mapinfo.lua", nil, VFS.MAP) -- load mapinfo.lua confs
 local hasVoid = false
 if success and type(mapinfo) == "table" and mapinfo.voidwater then
   hasVoid = true
 elseif not success then
-  Spring.Echo("Place Target On Ground failed to load the mapinfo.lua")
+  Spring.Echo("Place Target On Ground failed to load mapinfo.lua: " .. tostring(mapinfo))
 end
 
 function gadget:Initialize()

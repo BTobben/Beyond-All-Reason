@@ -1,6 +1,8 @@
 if not Platform then return end
 local hasGL4 = false
 local hasGL41Core = false
+local hasUniformBuffers = false
+local hasGLSL420Pack = false
 local hasComputeShaders = false
 local hasShaderStorageBuffers = false
 local hasImageLoadStore = false
@@ -42,6 +44,8 @@ local function determineCapabilities()
 	end
 
 	hasGL41Core = hasShaders and Platform.glSupportGL41Core == true
+	hasUniformBuffers = hasShaders and gl.GetVBO and supports('glSupportUniformBuffers') or false
+	hasGLSL420Pack = hasShaders and supports('glSupportGLSL420Pack') or false
 	hasComputeShaders = hasShaders and gl.DispatchCompute and supports('glSupportComputeShaders') or false
 	hasShaderStorageBuffers = gl.GetVBO and supports('glSupportShaderStorageBuffers') or false
 	hasImageLoadStore = gl.BindImageTexture and supports('glSupportImageLoadStore') or false
@@ -67,6 +71,8 @@ local function extendPlatform()
 	capabilities.gl = hasGL
 	capabilities.gl4 = hasGL4
 	capabilities.gl41 = hasGL41Core
+	capabilities.ubo = hasUniformBuffers
+	capabilities.glsl420pack = hasGLSL420Pack
 	capabilities.shaders = hasShaders
 	capabilities.fbo = hasFBO
 	capabilities.compute = hasComputeShaders
@@ -78,6 +84,8 @@ local function extendPlatform()
 	Platform.gl = Platform.gl or hasGL
 	Platform.gl4 = Platform.gl4 or hasGL4
 	Platform.gl41 = Platform.gl41 or hasGL41Core
+	Platform.ubo = Platform.ubo or hasUniformBuffers
+	Platform.glsl420pack = Platform.glsl420pack or hasGLSL420Pack
 	Platform.compute = Platform.compute or hasComputeShaders
 	Platform.ssbo = Platform.ssbo or hasShaderStorageBuffers
 	Platform.imageLoadStore = Platform.imageLoadStore or hasImageLoadStore

@@ -128,9 +128,9 @@ local MAX_BEND_UNITS = 128
 -- map custom config
 -- if map has a custom mapinfo.lua configuration, then merge the keys of it with our config table
 
-local success, mapcfg = pcall(VFS.Include,"mapinfo.lua") -- load mapinfo.lua confs
+local success, mapcfg = pcall(VFS.Include, "mapinfo.lua", nil, VFS.MAP) -- load mapinfo.lua confs
 if not success then
-  spEcho("Map Grass GL4 failed to find a mapinfo.lua, using default configs")
+  spEcho("Map Grass GL4 failed to load mapinfo.lua, using defaults: " .. tostring(mapcfg))
 else
   if mapcfg and mapcfg.custom and mapcfg.custom.grassconfig then
 	spEcho("Loading LuaGrass custom parameters from mapinfo.lua")

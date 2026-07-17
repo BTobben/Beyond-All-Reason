@@ -7,6 +7,8 @@ these as capability aliases and dependency names:
 | Dependency | `Platform` alias | Engine capability |
 | --- | --- | --- |
 | `gl41` | `Platform.gl41` | `glSupportGL41Core` |
+| `ubo` | `Platform.ubo` | `glSupportUniformBuffers` |
+| `glsl420pack` | `Platform.glsl420pack` | `glSupportGLSL420Pack` |
 | `compute` | `Platform.compute` | `glSupportComputeShaders` |
 | `ssbo` | `Platform.ssbo` | `glSupportShaderStorageBuffers` |
 | `imageLoadStore` | `Platform.imageLoadStore` | `glSupportImageLoadStore` |
@@ -20,18 +22,23 @@ Widgets and unsynced gadgets can list the smallest required set in their
 depends = {'compute', 'ssbo'},
 ```
 
+Shaders using `gl.GetEngineUniformBufferDef` should depend on `ubo`, not on
+`glsl420pack`: the paired RecoilEngine branch binds the engine blocks
+programmatically on GLSL 4.10. `glsl420pack` is only required by content that
+writes `layout(binding=...)` itself and has no 4.10 variant.
+
 The existing `gl4` dependency remains the full enhanced renderer tier. On
 older engines that do not expose granular fields, the new requirements fall
 back to `Platform.glHaveGL4`; this preserves compatibility without claiming
 support on a known OpenGL 4.1 context.
 
-Apple's system OpenGL does not provide compute shaders, SSBOs, image
-load/store, atomic counters, or multi-draw indirect. Content declaring those
-requirements is therefore disabled before initialization instead of failing
-during shader compilation or buffer creation.
+Apple's system OpenGL 4.1 provides UBOs, but does not provide compute shaders,
+SSBOs, image load/store, atomic counters, or multi-draw indirect. Content
+declaring those requirements is therefore disabled before initialization
+instead of failing during shader compilation or buffer creation.
 
-This is capability plumbing, not a complete playable macOS port. RecoilEngine
-still has compatibility-profile rendering calls that must be migrated before
-its graphical client can run in a macOS 4.1 Core context. Vulkan through
-MoltenVK/Metal remains a possible long-term renderer direction and is outside
-this compatibility change.
+This is capability plumbing and an experimental startup configuration, not a
+claim that a full match is playable on macOS. Remaining content render paths
+still require runtime verification. Vulkan through MoltenVK/Metal remains a
+possible long-term renderer direction and is outside this compatibility
+change.

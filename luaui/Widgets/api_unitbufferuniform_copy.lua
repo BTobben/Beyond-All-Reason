@@ -8,6 +8,7 @@ function widget:GetInfo()
     license   = "GPL V2",
     layer     = 0,
     enabled   = false,
+    depends   = {'compute', 'ssbo'},
   }
 end
 

@@ -49,6 +49,7 @@ local isPotatoCpu = false
 local isPotatoGpu = false
 local gpuMem = (Platform.gpuMemorySize or 0) / 1000 -- gpuMemorySize is in KB (only Nvidia reports nonzero), /1000 ≈ MB
 local glRendererLower = Platform.glRenderer and string.lower(Platform.glRenderer) or ""
+local limitedRenderingPath = (Spring.GetConfigInt("ForceDisableGL4", 0) == 1) or not Platform.glHaveGL4
 
 if not Platform.glHaveGL4 then
 	-- No GL4 support means the engine can't use modern rendering paths
@@ -6821,6 +6822,44 @@ function init()
 
 	if not isPotatoGpu and not devMode and not devUI then
 		options[getOptionByID('cusgl4')] = nil
+	end
+
+	-- The macOS/OpenGL 4.1 fallback intentionally disables engine GL4 rendering.
+	-- Keep unsupported controls out of the menu and prevent presets from repeatedly
+	-- trying to reload widgets that already rejected the available capabilities.
+	if limitedRenderingPath then
+		local unsupportedWidgets = {
+			"SSAO",
+			"Bloom Shader Deferred",
+			"Deferred rendering GL4",
+			"Distortion GL4",
+			"Decals GL4",
+		}
+		for _, widgetName in ipairs(unsupportedWidgets) do
+			if widgetHandler.knownWidgets[widgetName] then
+				widgetHandler:DisableWidget(widgetName)
+			end
+		end
+
+		Spring.SetConfigInt("cus2", 0)
+		Spring.SendCommands("luarules disablecusgl4")
+
+		local unsupportedOptionIDs = {
+			"cusgl4",
+			"ssao", "ssao_strength", "ssao_quality",
+			"bloomdeferred", "bloomdeferredbrightness", "bloomdeferred_quality",
+			"lighteffects", "lighteffects_headlights", "lighteffects_buildlights",
+			"lighteffects_brightness", "lighteffects_radius",
+			"lighteffects_screenspaceshadows", "lighteffects_nanoparticlelights",
+			"distortioneffects",
+			"decalsgl4", "decalsgl4_lifetime",
+		}
+		for _, optionID in ipairs(unsupportedOptionIDs) do
+			local optionIndex = getOptionByID(optionID)
+			if optionIndex then
+				options[optionIndex] = nil
+			end
+		end
 	end
 
 	-- loads values via stored game config in luaui/configs

@@ -32,13 +32,29 @@ older engines that do not expose granular fields, the new requirements fall
 back to `Platform.glHaveGL4`; this preserves compatibility without claiming
 support on a known OpenGL 4.1 context.
 
-Apple's system OpenGL 4.1 provides UBOs, but does not provide compute shaders,
-SSBOs, image load/store, atomic counters, or multi-draw indirect. Content
-declaring those requirements is therefore disabled before initialization
-instead of failing during shader compilation or buffer creation.
+Apple's system OpenGL 4.1 provides UBOs, but does not provide compute shaders, SSBOs, image
+load/store, atomic counters, or multi-draw indirect. Content declaring those
+requirements is therefore disabled before initialization instead of failing
+during shader compilation or buffer creation.
 
 This is capability plumbing and an experimental startup configuration, not a
 claim that a full match is playable on macOS. Remaining content render paths
 still require runtime verification. Vulkan through MoltenVK/Metal remains a
 possible long-term renderer direction and is outside this compatibility
 change.
+
+## One-command native build
+
+The paired RecoilEngine branch contains `macos-build-bar.sh`. On the Mac it
+can fetch this BAR branch (including Git LFS content), install missing Apple
+Command Line Tools/Homebrew dependencies, build the engine, assemble an
+ad-hoc-signed `Beyond All Reason GL41.app`, and run the GL 4.1 smoke test:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/BTobben/RecoilEngine/agent/macos-gl41-ubo-content/macos-build-bar.sh)"
+```
+
+The default output is under `~/BAR-macOS-GL41`. Building directly on the
+target Mac is preferred over Linux cross-compilation because the build and
+smoke test use Apple's macOS SDK, frameworks, code-signing tools, and native
+OpenGL 4.1 driver.

@@ -10,6 +10,7 @@ local hasGL = false
 local hasShaders = false
 local hasFBO = false
 local isSyncedCode = (SendToUnsynced ~= nil)
+local capabilities = {}
 
 local function determineCapabilities()
 	if not gl then
@@ -53,19 +54,6 @@ local function checkRequires(allRequires)
 		return true
 	end
 
-	local capabilities = {
-		gl = hasGL,
-		gl4 = hasGL4,
-		gl41 = hasGL41Core,
-		shaders = hasShaders,
-		fbo = hasFBO,
-		compute = hasComputeShaders,
-		ssbo = hasShaderStorageBuffers,
-		imageLoadStore = hasImageLoadStore,
-		atomicCounters = hasAtomicCounterBuffers,
-		multiDrawIndirect = hasMultiDrawIndirect,
-	}
-
 	for i = 1, #allRequires do
 		local capability = capabilities[allRequires[i]]
 		if capability ~= nil and not capability then
@@ -76,6 +64,17 @@ local function checkRequires(allRequires)
 end
 
 local function extendPlatform()
+	capabilities.gl = hasGL
+	capabilities.gl4 = hasGL4
+	capabilities.gl41 = hasGL41Core
+	capabilities.shaders = hasShaders
+	capabilities.fbo = hasFBO
+	capabilities.compute = hasComputeShaders
+	capabilities.ssbo = hasShaderStorageBuffers
+	capabilities.imageLoadStore = hasImageLoadStore
+	capabilities.atomicCounters = hasAtomicCounterBuffers
+	capabilities.multiDrawIndirect = hasMultiDrawIndirect
+
 	Platform.gl = Platform.gl or hasGL
 	Platform.gl4 = Platform.gl4 or hasGL4
 	Platform.gl41 = Platform.gl41 or hasGL41Core

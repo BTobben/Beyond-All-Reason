@@ -49,7 +49,7 @@ local isPotatoCpu = false
 local isPotatoGpu = false
 local gpuMem = (Platform.gpuMemorySize or 0) / 1000 -- gpuMemorySize is in KB (only Nvidia reports nonzero), /1000 ≈ MB
 local glRendererLower = Platform.glRenderer and string.lower(Platform.glRenderer) or ""
-local limitedRenderingPath = (Spring.GetConfigInt("ForceDisableGL4", 0) == 1) or not Platform.glHaveGL4
+local limitedRenderingPath = (Spring.GetConfigString("OpenGLFeatureLevel", "auto") == "gl41") or (Spring.GetConfigInt("ForceDisableGL4", 0) == 1) or not Platform.glHaveGL4
 
 if not Platform.glHaveGL4 then
 	-- No GL4 support means the engine can't use modern rendering paths
@@ -2643,6 +2643,44 @@ function init()
 		},
 		{ id = "label_gfx_screen", group = "gfx", name = Spring.I18N('ui.settings.option.label_screen'), category = types.basic },
 		{ id = "label_gfx_screen_spacer", group = "gfx", category = types.basic },
+		{ id = "renderingbackend", group = "gfx", category = types.basic, name = Spring.I18N('ui.settings.option.renderingbackend'), type = "select",
+			options = {
+				Spring.I18N('ui.settings.option.renderingbackend_auto'),
+				Spring.I18N('ui.settings.option.renderingbackend_opengl'),
+				Spring.I18N('ui.settings.option.renderingbackend_gl41'),
+			},
+			description = Spring.I18N('ui.settings.option.renderingbackend_descr'),
+			restart = true,
+			onload = function(i)
+				local backend = Spring.GetConfigString('RenderingBackend', 'auto')
+				local featureLevel = Spring.GetConfigString('OpenGLFeatureLevel', 'auto')
+				if backend == 'opengl' and featureLevel == 'full' then
+					options[i].value = 2
+				elseif featureLevel == 'gl41' then
+					options[i].value = 3
+				else
+					options[i].value = 1
+				end
+			end,
+			onchange = function(_, value)
+				if value == 2 then
+					Spring.SetConfigString('RenderingBackend', 'opengl')
+					Spring.SetConfigString('OpenGLFeatureLevel', 'full')
+					Spring.SetConfigInt('ForceDisableGL4', 0)
+					Spring.SetConfigInt('ForceDisablePersistentMapping', 0)
+				elseif value == 3 then
+					Spring.SetConfigString('RenderingBackend', 'opengl')
+					Spring.SetConfigString('OpenGLFeatureLevel', 'gl41')
+					Spring.SetConfigInt('ForceDisableGL4', 1)
+					Spring.SetConfigInt('ForceDisablePersistentMapping', 1)
+				else
+					Spring.SetConfigString('RenderingBackend', 'auto')
+					Spring.SetConfigString('OpenGLFeatureLevel', 'auto')
+					Spring.SetConfigInt('ForceDisableGL4', 0)
+					Spring.SetConfigInt('ForceDisablePersistentMapping', 0)
+				end
+			end,
+		},
 		{ id = "display", group = "gfx", category = types.basic, name = Spring.I18N('ui.settings.option.display'), type = "select", options = displayNames, value = currentDisplay,
 			onchange = function(i, value)
 				--currentDisplay = value

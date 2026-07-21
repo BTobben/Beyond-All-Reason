@@ -58,6 +58,9 @@ local cfg = {
 local skewTan = math.tan(math.rad(cfg.skewAngleDeg))
 
 -- System
+-- GL_ALPHA is not a color-renderable internal format in the macOS OpenGL Core profile.
+-- Keep the compact legacy target elsewhere, but use a real RGBA render target on macOS.
+local r2tColorFormat = (Platform.osFamily == 'MacOSX') and GL.RGBA8 or GL.ALPHA
 local guishaderEnabled = false
 local gaiaTeamID = Spring.GetGaiaTeamID()
 local spec = sp.GetSpectatingState()
@@ -1819,7 +1822,7 @@ function widget:DrawScreen()
 		end
 		uiBgTex = gl.CreateTexture(mathFloor(topbarArea[3]-topbarArea[1]), mathFloor(topbarArea[4]-topbarArea[2]), {
 			target = GL.TEXTURE_2D,
-			format = GL.ALPHA,
+			format = r2tColorFormat,
 			fbo = true,
 		})
 		if uiTex then
@@ -1827,7 +1830,7 @@ function widget:DrawScreen()
 		end
 		uiTex = gl.CreateTexture(mathFloor(topbarArea[3]-topbarArea[1]), mathFloor(topbarArea[4]-topbarArea[2]), {	--*(vsy<1400 and 2 or 1)
 			target = GL.TEXTURE_2D,
-			format = GL.ALPHA,
+			format = r2tColorFormat,
 			fbo = true,
 		})
 

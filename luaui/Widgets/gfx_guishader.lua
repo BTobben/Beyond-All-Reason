@@ -1,7 +1,7 @@
 -- Intel GPU compatibility: Use a simplified shader path
 -- The complex derivative-based quad message passing doesn't work reliably on Intel GPUs
 local isIntelGPU = Platform ~= nil and Platform.gpuVendor == 'Intel'
-local isMacOSCore = isIntelGPU and Platform.osFamily == 'MacOSX'
+local isMacOSCore = Platform ~= nil and Platform.osFamily == 'MacOSX' and Platform.glSupportGL41Core == true
 
 local widget = widget ---@type Widget
 
@@ -211,7 +211,7 @@ local function CreateShaders()
 	-- panels, buttons and settings windows still render; only blur is omitted.
 	if isMacOSCore then
 		blurShader = nil
-		Spring.Log(widget:GetInfo().name, LOG.INFO, "macOS Core fallback: blur disabled, GUI composition API retained")
+		Spring.Log(widget:GetInfo().name, LOG.INFO, "macOS Core fallback: blur disabled, GUI composition API retained (os=" .. tostring(Platform.osFamily) .. ", gl41core=" .. tostring(Platform.glSupportGL41Core) .. ", gpuVendor=" .. tostring(Platform.gpuVendor) .. ")")
 		return true
 	end
 

@@ -1,7 +1,7 @@
 -- Intel GPU compatibility: Use a simplified shader path
 -- The complex derivative-based quad message passing doesn't work reliably on Intel GPUs
 local isIntelGPU = Platform ~= nil and Platform.gpuVendor == 'Intel'
-local isMacOSCore = Platform ~= nil and Platform.osFamily == 'MacOSX' and Platform.glSupportGL41Core == true
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
 
 local widget = widget ---@type Widget
 
@@ -37,7 +37,7 @@ local canShader = gl.CreateShader ~= nil
 local LuaShader = gl.LuaShader
 -- NPOT textures are core since OpenGL 2.0. macOS Core may omit the old
 -- extension string even though the capability is guaranteed.
-local NON_POWER_OF_TWO = isMacOSCore or gl.HasExtension("GL_ARB_texture_non_power_of_two")
+local NON_POWER_OF_TWO = useGL41Core or gl.HasExtension("GL_ARB_texture_non_power_of_two")
 
 -- Localized GL functions for hot paths
 local glTexture = gl.Texture
@@ -206,12 +206,12 @@ local function CreateShaders()
 		blurShader:Finalize()
 	end
 
-	-- Recoil's macOS 4.1 Core path cannot execute this widget's legacy
+	-- Recoil's explicitly selected OpenGL 4.1 route cannot execute this widget's legacy
 	-- compatibility-profile blur shader. Keep the compositor/API alive so
 	-- panels, buttons and settings windows still render; only blur is omitted.
-	if isMacOSCore then
+	if useGL41Core then
 		blurShader = nil
-		Spring.Log(widget:GetInfo().name, LOG.INFO, "macOS Core fallback: blur disabled, GUI composition API retained (os=" .. tostring(Platform.osFamily) .. ", gl41core=" .. tostring(Platform.glSupportGL41Core) .. ", gpuVendor=" .. tostring(Platform.gpuVendor) .. ")")
+		Spring.Log(widget:GetInfo().name, LOG.INFO, "OpenGLFeatureLevel=gl41 fallback active: blur disabled, GUI composition API retained")
 		return true
 	end
 

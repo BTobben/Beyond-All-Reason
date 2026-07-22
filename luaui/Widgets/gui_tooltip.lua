@@ -26,6 +26,17 @@ local glPushMatrix = gl.PushMatrix
 local glPopMatrix = gl.PopMatrix
 local glCallList = gl.CallList
 local glTranslate = gl.Translate
+local glBlending = gl.Blending
+local glColor = gl.Color
+local glRect = gl.Rect
+
+-- The reduced macOS GL 4.1 route cannot use the GUI blur shader.  Its solid
+-- fallback is normally drawn by gfx_guishader, one widget pass after tooltip
+-- coordinates have been registered.  Moving tooltips therefore expose that
+-- frame of latency.  Draw their fallback in this widget so the panel and text
+-- consume the same mouse position in the same frame.
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
+local gl41TooltipOpacity = Spring.GetConfigFloat("ui_opacity", 0.7) * 0.72
 
 --[[
 
@@ -133,6 +144,9 @@ end
 
 function widget:Initialize()
 	widget:ViewResize(vsx, vsy)
+	if useGL41Core then
+		Spring.Echo("[Tooltip] GL41 same-frame solid background active")
+	end
 
 	if WG['tooltip'] == nil then
 		WG['tooltip'] = {}
@@ -398,13 +412,21 @@ local function drawTooltip(name, x, y)
 		posY = 0 + maxHeight + paddingH + paddingH
 	end
 
-	if WG['guishader'] then
+	if WG['guishader'] and not useGL41Core then
 		WG['guishader'].InsertScreenRect(posX - paddingW + bgpadding,
 			posY - maxHeight - paddingH, posX + maxWidth + paddingW -bgpadding,
 			posY + paddingH, 'tooltip_' .. name)
 		WG['guishader'].InsertScreenRect(posX - paddingW,
 			posY - maxHeight - paddingH + bgpadding, posX + maxWidth + paddingW,
 			posY + paddingH - bgpadding, '2tooltip_' .. name)
+	end
+
+	if useGL41Core then
+		glBlending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+		glColor(0, 0, 0, gl41TooltipOpacity)
+		glRect(posX - paddingW, posY - maxHeight - paddingH,
+			posX + maxWidth + paddingW, posY + paddingH)
+		glColor(1, 1, 1, 1)
 	end
 
 	if tooltips[name].bgTex then

@@ -203,9 +203,21 @@ function widget:Initialize()
 	end
 
 
-	infoShader =  LuaShader.CheckShaderUpdates(shaderSourceCache)
-	shaderCompiled = infoShader:Initialize()
-	if not shaderCompiled then spEcho("Failed to compile InfoLOS GL4") end
+	infoShader = LuaShader.CheckShaderUpdates(shaderSourceCache)
+	if not infoShader then
+		spEcho("Failed to create InfoLOS shader")
+		widgetHandler:RemoveWidget()
+		return
+	end
+
+	local shaderCompiled = infoShader:Initialize()
+	if not shaderCompiled then
+		spEcho("Failed to compile InfoLOS shader")
+		infoShader:Finalize()
+		infoShader = nil
+		widgetHandler:RemoveWidget()
+		return
+	end
 
 
 	fullScreenQuadVAO = InstanceVBOTable.MakeTexRectVAO()--  -1, -1, 1, 0,   0,0,1, 0.5

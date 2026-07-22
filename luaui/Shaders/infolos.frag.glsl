@@ -1,4 +1,4 @@
-#version 430 core
+#version 410 core
 //__DEFINES__
 
 //__ENGINEUNIFORMBUFFERDEFS__

@@ -84,6 +84,28 @@ local extraBlurPasses = 0
 local cachedIvsx = 0.5 / vsx
 local cachedIvsy = 0.5 / vsy
 
+-- The GL 4.1 core route cannot run the legacy compatibility-profile blur
+-- shader. Draw the registered masks as translucent panels instead so UI
+-- backgrounds remain visible and usable even though they are not blurred.
+local function DrawSolidFallback(rects, dlists, fullscreen)
+	if fullscreen then
+		glColor(0, 0, 0, uiOpacity * 0.72)
+		glRect(0, 0, vsx, vsy)
+	else
+		for _, rect in pairs(rects) do
+			glColor(0, 0, 0, uiOpacity * 0.72)
+			glRect(rect[1], rect[2], rect[3], rect[4])
+		end
+
+		for _, dlist in pairs(dlists) do
+			glColor(0, 0, 0, uiOpacity * 0.72)
+			glCallList(dlist)
+		end
+	end
+
+	glColor(1, 1, 1, 1)
+end
+
 function widget:ViewResize(_, _)
 	vsx, vsy, vpx, vpy = spGetViewGeometry()
 
@@ -386,6 +408,15 @@ function widget:DrawScreenEffects() -- This blurs the world underneath UI elemen
 		return
 	end
 
+	if useGL41Core and not blurShader and not screenBlur then
+		if next(guishaderRects) or next(guishaderDlists) then
+			glBlending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+			DrawSolidFallback(guishaderRects, guishaderDlists, false)
+			glBlending(false)
+		end
+		return
+	end
+
 	if not screenBlur and blurShader then
 		if not next(guishaderRects) and not next(guishaderDlists) then
 			return
@@ -452,6 +483,12 @@ local function DrawScreen() -- This blurs the UI elements obscured by other UI e
 			deleteDlistQueue[i] = nil
 		end
 		updateStencilTexture = true
+	end
+
+	if useGL41Core and not blurShader and (screenBlur or next(guishaderScreenRects) or next(guishaderScreenDlists)) then
+		glBlending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+		DrawSolidFallback(guishaderScreenRects, guishaderScreenDlists, screenBlur)
+		glBlending(false)
 	end
 
 	if (screenBlur or next(guishaderScreenRects) or next(guishaderScreenDlists)) and blurShader then

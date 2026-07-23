@@ -220,6 +220,8 @@ function widget:Initialize()
 	end
 
 
+	spEcho("[InfoLOS] shader initialized successfully")
+
 	fullScreenQuadVAO = InstanceVBOTable.MakeTexRectVAO()--  -1, -1, 1, 0,   0,0,1, 0.5
 
 	WG['infolosapi'] = {}

@@ -1,12 +1,9 @@
-#version 420
+#version 410
 #line 20000
-#extension GL_ARB_uniform_buffer_object : require
-#extension GL_ARB_shading_language_420pack: require
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Beherith (mysterme@gmail.com)
 // This shader is part of the Beyond All Reason repository.  
 
-//__ENGINEUNIFORMBUFFERDEFS__
 
 
 uniform sampler2D textAtlas;

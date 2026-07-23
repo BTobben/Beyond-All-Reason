@@ -2252,9 +2252,6 @@ function widget:MousePress(x, y, button)
 		if buttonsArea['buttons'] then
 			for button, pos in pairs(buttonsArea['buttons']) do
 				if mathIsInRect(x, y, pos[1], pos[2], pos[3], pos[4]) then
-					if useGL41Core then
-						Spring.Echo("[Top Bar] GL41 original button clicked: " .. button)
-					end
 					applyButtonAction(button)
 					return true
 				end

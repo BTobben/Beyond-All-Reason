@@ -61,6 +61,7 @@ local skewTan = math.tan(math.rad(cfg.skewAngleDeg))
 -- GL_ALPHA is not a color-renderable internal format in the macOS OpenGL Core profile.
 -- Keep the compact legacy target elsewhere, but use a real RGBA render target on macOS.
 local r2tColorFormat = (Platform.osFamily == 'MacOSX') and GL.RGBA8 or GL.ALPHA
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
 local guishaderEnabled = false
 local gaiaTeamID = Spring.GetGaiaTeamID()
 local spec = sp.GetSpectatingState()
@@ -1942,6 +1943,27 @@ local function updateTopbarAutoHide()
 	end
 end
 
+local function drawGL41DirectButtons()
+	if not useGL41Core or not showButtons then
+		return
+	end
+
+	-- The macOS GL 4.1 path cannot reliably display the cached render-to-texture
+	-- layer used by these static controls. Draw the same panel and display list
+	-- in the final framebuffer so visuals and existing hit areas stay aligned.
+	if WG['options'] and buttonsArea['buttons'] and not buttonsArea['buttons'].options then
+		updateButtons()
+	end
+
+	if not buttonsArea[1] or not dlist.buttons then
+		return
+	end
+
+	UiElement(buttonsArea[1], buttonsArea[2], buttonsArea[3], buttonsArea[4], 0, 0, 0, 1, nil, nil, nil, nil, nil, nil, nil, nil)
+	glColor(1, 1, 1, 1)
+	glCallList(dlist.buttons)
+end
+
 local function drawTopbarButtonHighlights()
 	if not showButtons or not dlist.buttons or not buttonsArea['buttons'] then
 		return
@@ -2002,6 +2024,7 @@ function widget:DrawScreen()
 	glPushMatrix()
 	updateTopbarCommanderCounter(topbarHeight)
 	updateTopbarAutoHide()
+	drawGL41DirectButtons()
 	drawTopbarButtonHighlights()
 	drawTopbarQuitOverlay()
 	glColor(1, 1, 1, 1)
@@ -2293,6 +2316,9 @@ end
 function widget:Initialize()
 	gameFrame = sp.GetGameFrame()
 	Spring.SendCommands("resbar 0")
+	if useGL41Core then
+		Spring.Echo("[Top Bar] GL41 direct settings/menu buttons active")
+	end
 
 	-- determine if we want to show comcounter
 	local allteams = Spring.GetTeamList()

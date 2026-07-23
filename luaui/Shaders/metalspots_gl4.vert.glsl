@@ -1,4 +1,4 @@
-#version 420
+#version 410
 
 uniform sampler2D heightMap;
 
@@ -32,7 +32,7 @@ float heightAtWorldPos(vec2 w){
 #define VERTEXTYPE localpos_dir_angle.w
 
 #define NOTOCCUPIED visibility.x
-#define GAMEFRAMECHANGED visibilty.y
+#define GAMEFRAMECHANGED visibility.y
 
 #define TEXTWIDTH visibility.z
 #define TEXTHEIGHT visibility.w

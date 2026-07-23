@@ -156,19 +156,70 @@ local groupRect, titleRect, countDownOptionID, countDownOptionClock, sceduleOpti
 local savedConfig, forceUpdate, sliderValueChanged, selectOptionsList, showSelectOptions, prevSelectHover
 local fontOption, draggingSlider, lastSliderSound, selectClickAllowHide, selectScrollOffset
 local guishaderWasActive = false
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
+local loggedGL41DirectDraw = false
 
 local glColor = gl.Color
 local glTexRect = gl.TexRect
 local glTexture = gl.Texture
-local glCreateList = gl.CreateList
-local glCallList = gl.CallList
-local glDeleteList = gl.DeleteList
+local nativeGlCreateList = gl.CreateList
+local nativeGlCallList = gl.CallList
+local nativeGlDeleteList = gl.DeleteList
 local glBlending = gl.Blending
 local GL_SRC_ALPHA = GL.SRC_ALPHA
 local GL_ONE_MINUS_SRC_ALPHA = GL.ONE_MINUS_SRC_ALPHA
 local GL_ONE = GL.ONE
 
 local RectRound, elementCorner, elementMargin, elementPadding, UiElement, UiButton, UiSlider, UiSliderKnob, UiToggle, UiSelector, UiSelectHighlight, bgpadding
+
+local function glCreateList(drawFunction, ...)
+	if not useGL41Core then
+		return nativeGlCreateList(drawFunction, ...)
+	end
+
+	return {
+		drawFunction = drawFunction,
+		arguments = {...},
+		argumentCount = select('#', ...),
+	}
+end
+
+local function glCallList(drawList)
+	if useGL41Core and type(drawList) == 'table' then
+		return drawList.drawFunction(unpack(drawList.arguments, 1, drawList.argumentCount))
+	end
+	return nativeGlCallList(drawList)
+end
+
+local function glDeleteList(drawList)
+	if useGL41Core and type(drawList) == 'table' then
+		return nil
+	end
+	return nativeGlDeleteList(drawList)
+end
+
+function GL41OptionsRebuildWindowList()
+	if windowList then
+		glDeleteList(windowList)
+	end
+	windowList = glCreateList(DrawWindow)
+end
+
+function GL41OptionsCanUseGuishader()
+	return WG['guishader'] ~= nil and not useGL41Core
+end
+
+function GL41OptionsDrawWindow()
+	if useGL41Core then
+		if not loggedGL41DirectDraw then
+			Spring.Echo("[Options] GL41 original panel direct-render active")
+			loggedGL41DirectDraw = true
+		end
+		DrawWindow()
+	else
+		glCallList(windowList)
+	end
+end
 
 local isSinglePlayer = Spring.Utilities.Gametype.IsSinglePlayer()
 local isReplay = Spring.IsReplay()
@@ -373,12 +424,12 @@ function widget:ViewResize()
 	end
 
 	if windowList then
-		gl.DeleteList(windowList)
+		glDeleteList(windowList)
 		backgroundGuishader = glDeleteList(backgroundGuishader)
 		consoleCmdDlist = glDeleteList(consoleCmdDlist)
 		textInputDlist = glDeleteList(textInputDlist)
 	end
-	windowList = gl.CreateList(DrawWindow)
+	GL41OptionsRebuildWindowList()
 
 	if backgroundGuishader ~= nil then
 		backgroundGuishader = glDeleteList(backgroundGuishader)
@@ -450,7 +501,7 @@ end
 local function cancelChatInput()
 	local doReinit = inputText ~= ''
 	backgroundGuishader = glDeleteList(backgroundGuishader)
-	if WG['guishader'] then
+	if WG['guishader'] and not useGL41Core then
 		WG['guishader'].RemoveDlist('options')
 		WG['guishader'].RemoveRect('optionsinput')
 		if selectOptionsList then
@@ -1295,13 +1346,12 @@ function widget:DrawScreen()
 
 		-- update new slider value
 		if sliderValueChanged then
-			gl.DeleteList(windowList)
-			windowList = gl.CreateList(DrawWindow)
+			GL41OptionsRebuildWindowList()
 			sliderValueChanged = nil
 		end
 
 		if not showSelectOptions and selectOptionsList then
-			if WG['guishader'] then
+			if GL41OptionsCanUseGuishader() then
 				WG['guishader'].RemoveScreenRect('options_select')
 				WG['guishader'].RemoveScreenRect('options_select_options')
 				WG['guishader'].removeRenderDlist(selectOptionsList)
@@ -1333,8 +1383,8 @@ function widget:DrawScreen()
 			end
 
 			-- draw the options panel
-			glCallList(windowList)
-			if WG['guishader'] then
+			GL41OptionsDrawWindow()
+			if GL41OptionsCanUseGuishader() then
 				if not backgroundGuishader then
 					backgroundGuishader = glCreateList(function()
 						-- background
@@ -1495,7 +1545,7 @@ function widget:DrawScreen()
 					maxWidth = math.max(maxWidth, font:GetTextWidth(option .. '   ') * fontSize)
 				end
 				if selectOptionsList then
-					if WG['guishader'] then
+					if GL41OptionsCanUseGuishader() then
 						WG['guishader'].removeRenderDlist(selectOptionsList)
 					end
 					glDeleteList(selectOptionsList)
@@ -1555,7 +1605,7 @@ function widget:DrawScreen()
 						gl.Color(1, 1, 1, 1)
 					end
 				end)
-				if WG['guishader'] then
+				if GL41OptionsCanUseGuishader() then
 					WG['guishader'].InsertScreenRect(optionButtons[showSelectOptions][1], optionButtons[showSelectOptions][2], optionButtons[showSelectOptions][3], optionButtons[showSelectOptions][4], 'options_select')
 					WG['guishader'].InsertScreenRect(optionButtons[showSelectOptions][1], yPos - oHeight - oPadding, optionButtons[showSelectOptions][1] + maxWidth, optionButtons[showSelectOptions][2], 'options_select_options')
 					WG['guishader'].insertRenderDlist(selectOptionsList)
@@ -1954,10 +2004,7 @@ function mouseEvent(mx, my, button, release)
 
 		local needsRedraw = windowClick or titleClick or tabClick
 		if needsRedraw then
-			if windowList then
-				gl.DeleteList(windowList)
-			end
-			windowList = gl.CreateList(DrawWindow)
+			GL41OptionsRebuildWindowList()
 		end
 
 		if windowClick or titleClick or chatinputClick or tabClick then
@@ -2166,10 +2213,7 @@ function applyFilter()
 		if #queryWords == 0 then
 			options = unfilteredOptions
 			rebuildOptionIdIndex()
-			if windowList then
-				gl.DeleteList(windowList)
-			end
-			windowList = gl.CreateList(DrawWindow)
+			GL41OptionsRebuildWindowList()
 			return
 		end
 
@@ -2319,10 +2363,7 @@ function applyFilter()
 	rebuildOptionIdIndex()
 
 	-- Rebuild window display list
-	if windowList then
-		gl.DeleteList(windowList)
-	end
-	windowList = gl.CreateList(DrawWindow)
+	GL41OptionsRebuildWindowList()
 end
 
 function init()
@@ -2634,10 +2675,7 @@ function init()
 					end
 				end
 
-				if windowList then
-					gl.DeleteList(windowList)
-				end
-				windowList = gl.CreateList(DrawWindow)
+				GL41OptionsRebuildWindowList()
 				manualChange = true
 			end,
 		},
@@ -7309,10 +7347,7 @@ function init()
 		end
 	end
 
-	if windowList then
-		gl.DeleteList(windowList)
-	end
-	windowList = gl.CreateList(DrawWindow)
+	GL41OptionsRebuildWindowList()
 
 end
 
@@ -7577,6 +7612,9 @@ function widget:Initialize()
 			WG['topbar'].hideWindows()
 		end
 		show = newShow
+		if useGL41Core then
+			Spring.Echo("[Options] GL41 visibility=" .. tostring(show))
+		end
 		if showTextInput then
 			if show then
 				widgetHandler.textOwner = self		--widgetHandler:OwnText()
@@ -7679,7 +7717,7 @@ function widget:Shutdown()
 			gl.DeleteFont(fontOption[i])
 		end
 	end
-	if WG['guishader'] then
+	if WG['guishader'] and not useGL41Core then
 		WG['guishader'].RemoveDlist('options')
 		WG['guishader'].RemoveRect('optionsinput')
 		WG['guishader'].RemoveScreenRect('options_select')

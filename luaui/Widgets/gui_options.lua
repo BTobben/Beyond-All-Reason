@@ -382,7 +382,9 @@ local function showOption(option)
 end
 
 local function adjustShadowQuality()
-	local quality = Spring.GetConfigInt("ShadowQuality", 3)
+	-- The legacy shadow renderer is not valid in the GL4.1 core path yet.
+	-- Disable it at runtime without overwriting the user's full-renderer preset.
+	local quality = limitedRenderingPath and 0 or Spring.GetConfigInt("ShadowQuality", 3)
 	local shadowMapSize = 600 + math.min(10240, (vsy+vsx)*0.37)*(quality*0.5)
 	Spring.SetConfigInt("Shadows", (quality==0 and 0 or 1))
 	Spring.SetConfigInt("ShadowMapSize", shadowMapSize)
@@ -1973,7 +1975,7 @@ function mouseEvent(mx, my, button, release)
 						for i, o in pairs(optionButtons) do
 							if not options[i] then
 								-- skip: options table was rebuilt and this index is stale
-							elseif options[i].type == 'slider' and (math_isInRect(mx, my, o.sliderXpos[1], o[2], o.sliderXpos[2], o[4]) or math_isInRect(mx, my, o[1], o[2], o[3], o[4])) then
+							elseif options[i].type == 'slider' and o.sliderXpos and (math_isInRect(mx, my, o.sliderXpos[1], o[2], o.sliderXpos[2], o[4]) or math_isInRect(mx, my, o[1], o[2], o[3], o[4])) then
 								draggingSlider = i
 								draggingSliderPreDragValue = options[draggingSlider].value
 								local newValue = getSliderValue(draggingSlider, mx)
@@ -6910,6 +6912,7 @@ function init()
 			"Deferred rendering GL4",
 			"Distortion GL4",
 			"Decals GL4",
+			"Map Grass GL4",
 		}
 		for _, widgetName in ipairs(unsupportedWidgets) do
 			if widgetHandler.knownWidgets[widgetName] then
@@ -6929,6 +6932,8 @@ function init()
 			"lighteffects_screenspaceshadows", "lighteffects_nanoparticlelights",
 			"distortioneffects",
 			"decalsgl4", "decalsgl4_lifetime",
+			"grass", "grassdistance",
+			"shadowslider", "shadows_opacity",
 		}
 		for _, optionID in ipairs(unsupportedOptionIDs) do
 			local optionIndex = getOptionByID(optionID)

@@ -1803,57 +1803,53 @@ local function renderComCounter()
     glCallList(dlist.coms)
 end
 
-function widget:DrawScreen()
-	now = osClock()
-	local topbarHeight = topbarArea[4] - topbarArea[2]
-
-	if hoveringTopbar then
-		sp.SetMouseCursor('cursornormal')
-	end
-
+local function refreshTopbarTextures()
 	if showButtons ~= cache.prevShowButtons then
 		cache.prevShowButtons = showButtons
 		refreshUi = true
 	end
 
-	if refreshUi then
-		if uiBgTex then
-			gl.DeleteTexture(uiBgTex)
-		end
-		uiBgTex = gl.CreateTexture(mathFloor(topbarArea[3]-topbarArea[1]), mathFloor(topbarArea[4]-topbarArea[2]), {
-			target = GL.TEXTURE_2D,
-			format = r2tColorFormat,
-			fbo = true,
-		})
-		if uiTex then
-			gl.DeleteTexture(uiTex)
-		end
-		uiTex = gl.CreateTexture(mathFloor(topbarArea[3]-topbarArea[1]), mathFloor(topbarArea[4]-topbarArea[2]), {	--*(vsy<1400 and 2 or 1)
-			target = GL.TEXTURE_2D,
-			format = r2tColorFormat,
-			fbo = true,
-		})
-
-		if uiBgTex then
-			r2tHelper.RenderToTexture(uiBgTex, renderUiBackground, true)
-		end
-		if uiTex then
-			r2tHelper.RenderToTexture(uiTex, renderUi, true)
-		end
-
-		if WG['guishader'] then
-			if uiBgList then glDeleteList(uiBgList) end
-			uiBgList = glCreateList(function()
-				glColor(1,1,1,1)
-				gl.Texture(uiBgTex)
-				gl.TexRect(topbarArea[1], topbarArea[2], topbarArea[3], topbarArea[4], false, true)
-				gl.Texture(false)
-			end)
-			WG['guishader'].InsertDlist(uiBgList, 'topbar_background')
-		end
-
+	if not refreshUi then
+		return
 	end
 
+	if uiBgTex then
+		gl.DeleteTexture(uiBgTex)
+	end
+	uiBgTex = gl.CreateTexture(mathFloor(topbarArea[3]-topbarArea[1]), mathFloor(topbarArea[4]-topbarArea[2]), {
+		target = GL.TEXTURE_2D,
+		format = r2tColorFormat,
+		fbo = true,
+	})
+	if uiTex then
+		gl.DeleteTexture(uiTex)
+	end
+	uiTex = gl.CreateTexture(mathFloor(topbarArea[3]-topbarArea[1]), mathFloor(topbarArea[4]-topbarArea[2]), {
+		target = GL.TEXTURE_2D,
+		format = r2tColorFormat,
+		fbo = true,
+	})
+
+	if uiBgTex then
+		r2tHelper.RenderToTexture(uiBgTex, renderUiBackground, true)
+	end
+	if uiTex then
+		r2tHelper.RenderToTexture(uiTex, renderUi, true)
+	end
+
+	if WG['guishader'] then
+		if uiBgList then glDeleteList(uiBgList) end
+		uiBgList = glCreateList(function()
+			glColor(1,1,1,1)
+			gl.Texture(uiBgTex)
+			gl.TexRect(topbarArea[1], topbarArea[2], topbarArea[3], topbarArea[4], false, true)
+			gl.Texture(false)
+		end)
+		WG['guishader'].InsertDlist(uiBgList, 'topbar_background')
+	end
+end
+
+local function drawTopbarBase(topbarHeight)
 	if uiBgTex then
 		r2tHelper.BlendTexRect(uiBgTex, topbarArea[1], topbarArea[2], topbarArea[3], topbarArea[4], true)
 	end
@@ -1874,8 +1870,6 @@ function widget:DrawScreen()
 	end
 
 	-- Pre-clear storage text from uiTex before rendering it to screen.
-	-- drawResBars() updates uiTex AFTER BlendTexRect each frame, so without this
-	-- the stale storage text is visible for up to ~50ms when the warning first activates.
 	if uiTex and (showingWarning.metal or showingWarning.energy) then
 		local scissorsCount = 0
 		for i = 1, 2 do
@@ -1901,85 +1895,86 @@ function widget:DrawScreen()
 	if uiTex then
 		r2tHelper.BlendTexRect(uiTex, topbarArea[1], topbarArea[2], topbarArea[3], topbarArea[4], true)
 	end
+end
 
-	-- current wind
-	if not windFunctions.isNoWind() then
-		if currentWind ~= prevWind or refreshUi then
-			prevWind = currentWind
-			windTextScissor[1] = windArea[1]-topbarArea[1]
-			windTextScissor[2] = windArea[2]-topbarArea[2]
-			windTextScissor[3] = windArea[3]-windArea[1]
-			windTextScissor[4] = windArea[4]-windArea[2]
+local function updateTopbarWindTexture()
+	if windFunctions.isNoWind() or (currentWind == prevWind and not refreshUi) then
+		return
+	end
 
-			r2tHelper.RenderToTexture(uiTex,
-				renderWindText,
-				true,
-				windTextScissor
-			)
+	prevWind = currentWind
+	windTextScissor[1] = windArea[1]-topbarArea[1]
+	windTextScissor[2] = windArea[2]-topbarArea[2]
+	windTextScissor[3] = windArea[3]-windArea[1]
+	windTextScissor[4] = windArea[4]-windArea[2]
+
+	r2tHelper.RenderToTexture(uiTex, renderWindText, true, windTextScissor)
+end
+
+local function updateTopbarCommanderCounter(topbarHeight)
+	if not displayComCounter or not dlist.coms then
+		return
+	end
+
+	if comsDlistUpdate or prevComAlert == nil or (prevComAlert ~= (allyComs == 1 and (gameFrame % 12 < 6))) then
+		prevComAlert = (allyComs == 1 and (gameFrame % 12 < 6))
+		comsDlistUpdate = nil
+		comCounterScissor[1] = comsArea[1]-topbarArea[1]
+		comCounterScissor[2] = 0
+		comCounterScissor[3] = comsArea[3]-comsArea[1]
+		comCounterScissor[4] = topbarHeight
+
+		r2tHelper.RenderToTexture(uiTex, renderComCounter, true, comCounterScissor)
+	end
+end
+
+local function updateTopbarAutoHide()
+	if not autoHideButtons then
+		return
+	end
+
+	if buttonsArea[1] and hoveringTopbar == 'menu' then
+		if not showButtons then
+			showButtons = true
+		end
+	elseif showButtons then
+		showButtons = false
+	end
+end
+
+local function drawTopbarButtonHighlights()
+	if not showButtons or not dlist.buttons or not buttonsArea['buttons'] then
+		return
+	end
+
+	-- changelog changes highlight
+	if WG['changelog'] and WG['changelog'].haschanges() then
+		local button = 'changelog'
+		if buttonsArea['buttons'][button] then
+			local paddingsize = 1
+			RectRound(buttonsArea['buttons'][button][1]+paddingsize, buttonsArea['buttons'][button][2]+paddingsize, buttonsArea['buttons'][button][3]-paddingsize, buttonsArea['buttons'][button][4]-paddingsize, 3.5 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 1,1,1, 0.1*blinkProgress })
 		end
 	end
 
-	drawResBars()
-
-	glPushMatrix()
-	if displayComCounter and dlist.coms then
-
-		-- commander counter
-		if comsDlistUpdate or prevComAlert == nil or (prevComAlert ~= (allyComs == 1 and (gameFrame % 12 < 6))) then
-			prevComAlert = (allyComs == 1 and (gameFrame % 12 < 6))
-			comsDlistUpdate = nil
-			comCounterScissor[1] = comsArea[1]-topbarArea[1]
-			comCounterScissor[2] = 0
-			comCounterScissor[3] = comsArea[3]-comsArea[1]
-			comCounterScissor[4] = topbarHeight
-
-			r2tHelper.RenderToTexture(uiTex,
-				renderComCounter,
-				true,
-				comCounterScissor
-			)
-		end
-	end
-
-	if autoHideButtons then
-		if buttonsArea[1] and hoveringTopbar == 'menu' then
-			if not showButtons then
-				showButtons = true
-			end
-		elseif showButtons then
-			showButtons = false
-		end
-	end
-
-	if showButtons and dlist.buttons and buttonsArea['buttons'] then
-
-		-- changelog changes highlight
-		if WG['changelog'] and WG['changelog'].haschanges() then
-			local button = 'changelog'
-			if buttonsArea['buttons'][button] then
+	-- hovered?
+	if not showQuitscreen and hoveringTopbar == 'menu' then
+		for button, pos in pairs(buttonsArea['buttons']) do
+			if mathIsInRect(mx, my, pos[1], pos[2], pos[3], pos[4]) then
 				local paddingsize = 1
-				RectRound(buttonsArea['buttons'][button][1]+paddingsize, buttonsArea['buttons'][button][2]+paddingsize, buttonsArea['buttons'][button][3]-paddingsize, buttonsArea['buttons'][button][4]-paddingsize, 3.5 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 1,1,1, 0.1*blinkProgress })
-			end
-		end
-
-		-- hovered?
-		if not showQuitscreen and buttonsArea['buttons'] and hoveringTopbar == 'menu' then
-			for button, pos in pairs(buttonsArea['buttons']) do
-				if mathIsInRect(mx, my, pos[1], pos[2], pos[3], pos[4]) then
-					local paddingsize = 1
-					RectRound(buttonsArea['buttons'][button][1]+paddingsize, buttonsArea['buttons'][button][2]+paddingsize, buttonsArea['buttons'][button][3]-paddingsize, buttonsArea['buttons'][button][4]-paddingsize, 3.5 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 0,0,0, 0.06 })
-					glBlending(GL.SRC_ALPHA, GL.ONE)
-					RectRound(buttonsArea['buttons'][button][1], buttonsArea['buttons'][button][2], buttonsArea['buttons'][button][3], buttonsArea['buttons'][button][4], 3.5 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 1, 1, 1, mb and 0.13 or 0.03 }, { 0.44, 0.44, 0.44, mb and 0.4 or 0.2 })
-					local mult = 1
-					RectRound(buttonsArea['buttons'][button][1], buttonsArea['buttons'][button][4] - ((buttonsArea['buttons'][button][4] - buttonsArea['buttons'][button][2]) * 0.4), buttonsArea['buttons'][button][3], buttonsArea['buttons'][button][4], 3.3 * widgetScale, 0, 0, 0, 0, { 1, 1, 1, 0 }, { 1, 1, 1, 0.18 * mult })
-					RectRound(buttonsArea['buttons'][button][1], buttonsArea['buttons'][button][2], buttonsArea['buttons'][button][3], buttonsArea['buttons'][button][2] + ((buttonsArea['buttons'][button][4] - buttonsArea['buttons'][button][2]) * 0.25), 3.3 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 1, 1, 1, 0.045 * mult }, { 1, 1, 1, 0 })
-					glBlending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
-					break
-				end
+				RectRound(buttonsArea['buttons'][button][1]+paddingsize, buttonsArea['buttons'][button][2]+paddingsize, buttonsArea['buttons'][button][3]-paddingsize, buttonsArea['buttons'][button][4]-paddingsize, 3.5 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 0,0,0, 0.06 })
+				glBlending(GL.SRC_ALPHA, GL.ONE)
+				RectRound(buttonsArea['buttons'][button][1], buttonsArea['buttons'][button][2], buttonsArea['buttons'][button][3], buttonsArea['buttons'][button][4], 3.5 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 1, 1, 1, mb and 0.13 or 0.03 }, { 0.44, 0.44, 0.44, mb and 0.4 or 0.2 })
+				local mult = 1
+				RectRound(buttonsArea['buttons'][button][1], buttonsArea['buttons'][button][4] - ((buttonsArea['buttons'][button][4] - buttonsArea['buttons'][button][2]) * 0.4), buttonsArea['buttons'][button][3], buttonsArea['buttons'][button][4], 3.3 * widgetScale, 0, 0, 0, 0, { 1, 1, 1, 0 }, { 1, 1, 1, 0.18 * mult })
+				RectRound(buttonsArea['buttons'][button][1], buttonsArea['buttons'][button][2], buttonsArea['buttons'][button][3], buttonsArea['buttons'][button][2] + ((buttonsArea['buttons'][button][4] - buttonsArea['buttons'][button][2]) * 0.25), 3.3 * widgetScale, 0, 0, 0, button == firstButton and 1 or 0, { 1, 1, 1, 0.045 * mult }, { 1, 1, 1, 0 })
+				glBlending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+				break
 			end
 		end
 	end
+end
 
+local function drawTopbarQuitOverlay()
 	if dlist.quit then
 		if WG['guishader'] then WG['guishader'].removeRenderDlist(dlist.quit) end
 		glDeleteList(dlist.quit)
@@ -1989,7 +1984,26 @@ function widget:DrawScreen()
 	if showQuitscreen then
 		drawQuitScreen()
 	end
+end
 
+function widget:DrawScreen()
+	now = osClock()
+	local topbarHeight = topbarArea[4] - topbarArea[2]
+
+	if hoveringTopbar then
+		sp.SetMouseCursor('cursornormal')
+	end
+
+	refreshTopbarTextures()
+	drawTopbarBase(topbarHeight)
+	updateTopbarWindTexture()
+	drawResBars()
+
+	glPushMatrix()
+	updateTopbarCommanderCounter(topbarHeight)
+	updateTopbarAutoHide()
+	drawTopbarButtonHighlights()
+	drawTopbarQuitOverlay()
 	glColor(1, 1, 1, 1)
 	glPopMatrix()
 

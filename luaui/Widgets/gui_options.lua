@@ -7612,9 +7612,6 @@ function widget:Initialize()
 			WG['topbar'].hideWindows()
 		end
 		show = newShow
-		if useGL41Core then
-			Spring.Echo("[Options] GL41 visibility=" .. tostring(show))
-		end
 		if showTextInput then
 			if show then
 				widgetHandler.textOwner = self		--widgetHandler:OwnText()

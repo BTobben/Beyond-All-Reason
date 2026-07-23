@@ -166,7 +166,6 @@ local windArea = {}
 local tidalarea = {}
 local comsArea = {}
 local buttonsArea = {}
-local gl41DirectButtonAreas = {}
 
 -- UI State
 local orgHeight = 46
@@ -356,6 +355,18 @@ local function short(n, f)
 	return result
 end
 
+local function drawButtonLabels()
+	local fontsize = (height * widgetScale) / 3
+
+	font2:Begin(true)
+	font2:SetTextColor(0.92, 0.92, 0.92, 1)
+	font2:SetOutlineColor(0, 0, 0, 1)
+	for _, params in pairs(buttonsArea['buttons']) do
+		font2:Print(params[5], params[6], params[2] + ((params[4] - params[2]) * 0.5) - (fontsize / 5), fontsize, 'co')
+	end
+	font2:End()
+end
+
 local function updateButtons()
 	local fontsize = (height * widgetScale) / 3
 	local prevButtonsArea = buttonsArea
@@ -406,15 +417,7 @@ local function updateButtons()
 	prevButtonsArea = buttonsArea
 
 	if dlist.buttons then glDeleteList(dlist.buttons) end
-	dlist.buttons = glCreateList(function()
-		font2:Begin(true)
-		font2:SetTextColor(0.92, 0.92, 0.92, 1)
-		font2:SetOutlineColor(0, 0, 0, 1)
-		for name, params in pairs(buttonsArea['buttons']) do
-			font2:Print(params[5], params[6], params[2] + ((params[4] - params[2]) * 0.5) - (fontsize / 5), fontsize, 'co')
-		end
-		font2:End()
-	end)
+	dlist.buttons = useGL41Core and nil or glCreateList(drawButtonLabels)
 end
 
 local function updateComs(forceText)
@@ -1545,7 +1548,7 @@ local function drawQuitScreen()
 
 	Spring.SetMouseCursor('cursornormal')
 
-	dlist.quit = glCreateList(function()
+	local function render()
 		if WG['guishader'] then
 			glColor(0, 0, 0, (0.18 * fadeProgress))
 		else
@@ -1679,7 +1682,14 @@ local function drawQuitScreen()
 
 			font2:End()
 		end
-	end)
+	end
+
+	if useGL41Core then
+		render()
+		return
+	end
+
+	dlist.quit = glCreateList(render)
 
 	-- background
 	if WG['guishader'] then
@@ -1722,7 +1732,7 @@ local function drawUiBackground()
 end
 
 local function drawUi()
-	if showButtons and dlist.buttons then
+	if showButtons and dlist.buttons and not useGL41Core then
 		glCallList(dlist.buttons)
 	end
 	if showResourceBars and dlist.resbar.energy and dlist.resbar.energy[1] then
@@ -1946,64 +1956,27 @@ end
 
 local function drawGL41DirectButtons()
 	if not useGL41Core or not showButtons or showQuitscreen then
-		gl41DirectButtonAreas = {}
 		return
 	end
 
-	-- Keep these essential controls independent of the cached Top Bar render
-	-- layer: that layer is not reliably visible in the macOS GL 4.1 route.
-	local buttonHeight = mathFloor(30 * widgetScale + 0.5)
-	local gap = mathFloor(6 * widgetScale + 0.5)
-	local right = vsx - mathFloor(10 * widgetScale + 0.5)
-	local top = vsy - mathFloor(8 * widgetScale + 0.5)
-	local fontSize = mathFloor(14 * widgetScale + 0.5)
-	local buttonDefs = {
-		{
-			name = 'options',
-			label = Spring.I18N('ui.topbar.button.settings'),
-			width = mathFloor(112 * widgetScale + 0.5),
-		},
-		{
-			name = 'quit',
-			label = Spring.I18N((not gameIsOver and chobbyLoaded) and 'ui.topbar.button.lobby' or 'ui.topbar.button.quit'),
-			width = mathFloor(82 * widgetScale + 0.5),
-		},
-	}
-	local labels = {}
-
-	gl41DirectButtonAreas = {}
-	for _, params in ipairs(buttonDefs) do
-		local x2 = right
-		local x1 = x2 - params.width
-		local y2 = top
-		local y1 = y2 - buttonHeight
-		local hovered = mathIsInRect(mx, my, x1, y1, x2, y2)
-
-		glColor(0.03, 0.07, 0.08, hovered and 0.95 or 0.82)
-		gl.Rect(x1, y1, x2, y2)
-		glColor(hovered and 0.65 or 0.35, hovered and 0.9 or 0.55, 1, 0.95)
-		gl.Rect(x1, y1, x2, y1 + 1)
-		gl.Rect(x1, y2 - 1, x2, y2)
-		gl.Rect(x1, y1, x1 + 1, y2)
-		gl.Rect(x2 - 1, y1, x2, y2)
-
-		gl41DirectButtonAreas[params.name] = {x1, y1, x2, y2}
-		labels[#labels + 1] = {params.label, (x1 + x2) * 0.5, y1 + (buttonHeight * 0.5) - (fontSize / 5)}
-		right = x1 - gap
+	-- OpenGL Core has no native display lists. Reuse BAR's original geometry,
+	-- labels, hit areas and actions, but execute the same drawing functions in
+	-- the current frame instead of replacing them with parallel controls.
+	if WG['options'] and buttonsArea['buttons'] and not buttonsArea['buttons'].options then
+		updateButtons()
 	end
 
-	font2:Begin(true)
-	font2:SetTextColor(1, 1, 1, 1)
-	font2:SetOutlineColor(0, 0, 0, 0.9)
-	for _, label in ipairs(labels) do
-		font2:Print(label[1], label[2], label[3], fontSize, 'co')
+	if not buttonsArea[1] or not buttonsArea['buttons'] then
+		return
 	end
-	font2:End()
+
+	UiElement(buttonsArea[1], buttonsArea[2], buttonsArea[3], buttonsArea[4], 0, 0, 0, 1, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	glColor(1, 1, 1, 1)
+	drawButtonLabels()
 end
 
 local function drawTopbarButtonHighlights()
-	if not showButtons or not dlist.buttons or not buttonsArea['buttons'] then
+	if not showButtons or (not useGL41Core and not dlist.buttons) or not buttonsArea['buttons'] then
 		return
 	end
 
@@ -2216,17 +2189,6 @@ end
 
 function widget:MousePress(x, y, button)
 	if button == 1 then
-		if useGL41Core and not showQuitscreen then
-			for name, area in pairs(gl41DirectButtonAreas) do
-				if mathIsInRect(x, y, area[1], area[2], area[3], area[4]) then
-					if playSounds then
-						Spring.PlaySoundFile(leftclick, 0.75, 'ui')
-					end
-					applyButtonAction(name)
-					return true
-				end
-			end
-		end
 		if showQuitscreen and quitscreenArea then
 			if mathIsInRect(x, y, quitscreenArea[1], quitscreenArea[2], quitscreenArea[3], quitscreenArea[4]) then
 				if (gameIsOver or not chobbyLoaded or not spec) and mathIsInRect(x, y, quitscreenStayArea[1], quitscreenStayArea[2], quitscreenStayArea[3], quitscreenStayArea[4]) then
@@ -2290,6 +2252,9 @@ function widget:MousePress(x, y, button)
 		if buttonsArea['buttons'] then
 			for button, pos in pairs(buttonsArea['buttons']) do
 				if mathIsInRect(x, y, pos[1], pos[2], pos[3], pos[4]) then
+					if useGL41Core then
+						Spring.Echo("[Top Bar] GL41 original button clicked: " .. button)
+					end
 					applyButtonAction(button)
 					return true
 				end
@@ -2366,7 +2331,7 @@ function widget:Initialize()
 	gameFrame = sp.GetGameFrame()
 	Spring.SendCommands("resbar 0")
 	if useGL41Core then
-		Spring.Echo("[Top Bar] GL41 immediate settings/menu controls active")
+		Spring.Echo("[Top Bar] GL41 original controls direct-render active")
 	end
 
 	-- determine if we want to show comcounter

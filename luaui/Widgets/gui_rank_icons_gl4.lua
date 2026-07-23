@@ -19,6 +19,11 @@ local spEcho = Spring.Echo
 local spGetUnitTeam = Spring.GetUnitTeam
 local spGetAllUnits = Spring.GetAllUnits
 local spGetSpectatingState = Spring.GetSpectatingState
+local spGetUnitPosition = Spring.GetUnitPosition
+local spGetCameraPosition = Spring.GetCameraPosition
+local spWorldToScreenCoords = Spring.WorldToScreenCoords
+local spGetViewGeometry = Spring.GetViewGeometry
+local spIsGUIHidden = Spring.IsGUIHidden
 
 local iconsize = 1
 local iconoffset = 24
@@ -55,6 +60,13 @@ local rankVBO = nil
 local rankShader = nil
 local luaShaderDir = "LuaUI/Include/"
 
+-- OpenGL 4.1 has neither geometry shaders in BAR's GL4 widget route nor
+-- shader-storage buffers. Keep rank icons functional with a small CPU/2D
+-- fallback instead of compiling the nominal "NoGS" path, which still uses
+-- SSBOs and therefore cannot run on macOS GL 4.1.
+local classicMode = false
+local classicRanks = {}
+
 local debugmode = false
 
 local function addDirToAtlas(atlas, path)
@@ -89,6 +101,8 @@ local glDepthTest = gl.DepthTest
 local glDepthMask = gl.DepthMask
 local glAlphaTest = gl.AlphaTest
 local glTexture = gl.Texture
+local glColor = gl.Color
+local glTexRect = gl.TexRect
 
 local GL_GREATER = GL.GREATER
 
@@ -143,6 +157,15 @@ local function AddPrimitiveAtUnit(unitID, unitDefID, noUpload, reason, rank, fla
 	local gf = (flash and Spring.GetGameFrame()) or 0
 	unitDefID = unitDefID or spGetUnitDefID(unitID)
 
+	if classicMode then
+		if rank > 1 and unitDefID then
+			classicRanks[unitID] = {rank = rank, unitDefID = unitDefID}
+		else
+			classicRanks[unitID] = nil
+		end
+		return unitID
+	end
+
 	--if unitDefID == nil or unitDefIDtoDecalInfo[unitDefID] == nil then return end -- these cant have plates
 	--local decalInfo = unitDefIDtoDecalInfo[unitDefID]
 
@@ -181,12 +204,22 @@ end
 
 local function RemovePrimitive(unitID,reason)
 	if debugmode then Spring.Debug.TraceEcho("remove",unitID,reason) end
+	if classicMode then
+		classicRanks[unitID] = nil
+		return
+	end
 	if rankVBO.instanceIDtoIndex[unitID] then
 		popElementInstance(rankVBO, unitID)
 	end
 end
 
 local function initGL4()
+	if Platform.glUseGL41Core or Platform.glSupportShaderStorageBuffers == false then
+		classicMode = true
+		spEcho("[Rank Icons] GL41 classic fallback active")
+		return true
+	end
+
 	local DrawPrimitiveAtUnit = VFS.Include(luaShaderDir.."DrawPrimitiveAtUnit.lua")
 	local shaderConfig = DrawPrimitiveAtUnit.shaderConfig -- MAKE SURE YOU READ THE SHADERCONFIG TABLE in DrawPrimitiveAtUnit.lua
 	shaderConfig.BILLBOARD = 1
@@ -210,8 +243,9 @@ local function initGL4()
 	if debugmode then shaderConfig.POST_SHADING = shaderConfig.POST_SHADING .. " fragColor.a += 0.25;" end
 	rankVBO, rankShader = DrawPrimitiveAtUnit.InitDrawPrimitiveAtUnit(shaderConfig, "Rank Icons")
 	if rankVBO == nil then
-		widgetHandler:RemoveWidget()
-		return false
+		classicMode = true
+		spEcho("[Rank Icons] GL4 shader unavailable; classic fallback active")
+		return true
 	end
 
 	makeAtlas()
@@ -241,13 +275,27 @@ local function updateUnitRank(unitID, unitDefID, noUpload)
 		local newrank = getRank(unitDefID, xp)
 		if newrank > 1 then
 			AddPrimitiveAtUnit(unitID, unitDefID, noUpload, "updateUnitRank", newrank, false)
+		else
+			RemovePrimitive(unitID, "rank reset")
 		end
 	end
 end
 
 local function ProcessAllUnits()
-	InstanceVBOTable.clearInstanceTable(rankVBO)
 	local units = spGetAllUnits()
+
+	if classicMode then
+		classicRanks = {}
+		for _, unitID in ipairs(units) do
+			local unitDefID = spGetUnitDefID(unitID)
+			if unitDefID and (fullview or IsUnitAllied(unitID)) then
+				updateUnitRank(unitID, unitDefID, true)
+			end
+		end
+		return
+	end
+
+	InstanceVBOTable.clearInstanceTable(rankVBO)
 	--spEcho("Refreshing Ground Plates", #units)
 	for _, unitID in ipairs(units) do
 		local unitDefID = spGetUnitDefID(unitID)
@@ -348,6 +396,15 @@ function widget:VisibleUnitRemoved(unitID) -- E.g. when a unit dies
 end
 
 function widget:VisibleUnitsChanged(extVisibleUnits, extNumVisibleUnits)
+	if classicMode then
+		classicRanks = {}
+		for unitID, unitDefID in pairs(extVisibleUnits) do
+			updateUnitRank(unitID, unitDefID, true)
+		end
+		doRefresh = false
+		return
+	end
+
 	InstanceVBOTable.clearInstanceTable(rankVBO)
 	doRefresh = true
 	for unitID, unitDefID in pairs(extVisibleUnits) do
@@ -361,13 +418,45 @@ end
 function widget:DrawScreenEffects()
 	-- DrawScreenEffects so rank icons render after deferred lighting/distortion/bloom/tonemap;
 	-- shader still uses engine cameraViewProj UBO and depth-test for terrain occlusion.
-	if Spring.IsGUIHidden() then
+	if spIsGUIHidden() then
 		return
 	end
 	if doRefresh then
 		ProcessAllUnits()
 		doRefresh = false
 	end
+
+	if classicMode then
+		local cx, cy, cz = spGetCameraPosition()
+		local vsx, vsy = spGetViewGeometry()
+		local maxDistanceSq = usedCutoffDistance * usedCutoffDistance
+
+		glColor(1, 1, 1, 1)
+		for unitID, data in pairs(classicRanks) do
+			local ux, uy, uz = spGetUnitPosition(unitID)
+			if ux then
+				local dx, dy, dz = ux - cx, uy - cy, uz - cz
+				if (dx * dx + dy * dy + dz * dz) <= maxDistanceSq then
+					local sx, sy = spWorldToScreenCoords(
+						ux,
+						uy + (unitHeights[data.unitDefID] or iconoffset),
+						uz
+					)
+					if sx and sy and sx >= 0 and sy >= 0 and sx <= vsx and sy <= vsy then
+						local size = 14 * iconsizeMult * (unitIconMult[data.unitDefID] or 1)
+						glTexture(rankTextures[data.rank])
+						glTexRect(sx - size, sy - size, sx + size, sy + size)
+					end
+				end
+			else
+				classicRanks[unitID] = nil
+			end
+		end
+		glTexture(false)
+		glColor(1, 1, 1, 1)
+		return
+	end
+
 	if rankVBO.usedElements > 0 then
 		--spEcho(rankVBO.usedElements)
 		--gl.Culling(GL.BACK)

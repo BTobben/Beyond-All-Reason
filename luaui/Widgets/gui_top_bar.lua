@@ -166,6 +166,7 @@ local windArea = {}
 local tidalarea = {}
 local comsArea = {}
 local buttonsArea = {}
+local gl41DirectButtonAreas = {}
 
 -- UI State
 local orgHeight = 46
@@ -1944,24 +1945,61 @@ local function updateTopbarAutoHide()
 end
 
 local function drawGL41DirectButtons()
-	if not useGL41Core or not showButtons then
+	if not useGL41Core or not showButtons or showQuitscreen then
+		gl41DirectButtonAreas = {}
 		return
 	end
 
-	-- The macOS GL 4.1 path cannot reliably display the cached render-to-texture
-	-- layer used by these static controls. Draw the same panel and display list
-	-- in the final framebuffer so visuals and existing hit areas stay aligned.
-	if WG['options'] and buttonsArea['buttons'] and not buttonsArea['buttons'].options then
-		updateButtons()
+	-- Keep these essential controls independent of the cached Top Bar render
+	-- layer: that layer is not reliably visible in the macOS GL 4.1 route.
+	local buttonHeight = mathFloor(30 * widgetScale + 0.5)
+	local gap = mathFloor(6 * widgetScale + 0.5)
+	local right = vsx - mathFloor(10 * widgetScale + 0.5)
+	local top = vsy - mathFloor(8 * widgetScale + 0.5)
+	local fontSize = mathFloor(14 * widgetScale + 0.5)
+	local buttonDefs = {
+		{
+			name = 'options',
+			label = Spring.I18N('ui.topbar.button.settings'),
+			width = mathFloor(112 * widgetScale + 0.5),
+		},
+		{
+			name = 'quit',
+			label = Spring.I18N((not gameIsOver and chobbyLoaded) and 'ui.topbar.button.lobby' or 'ui.topbar.button.quit'),
+			width = mathFloor(82 * widgetScale + 0.5),
+		},
+	}
+	local labels = {}
+
+	gl41DirectButtonAreas = {}
+	for _, params in ipairs(buttonDefs) do
+		local x2 = right
+		local x1 = x2 - params.width
+		local y2 = top
+		local y1 = y2 - buttonHeight
+		local hovered = mathIsInRect(mx, my, x1, y1, x2, y2)
+
+		glColor(0.03, 0.07, 0.08, hovered and 0.95 or 0.82)
+		gl.Rect(x1, y1, x2, y2)
+		glColor(hovered and 0.65 or 0.35, hovered and 0.9 or 0.55, 1, 0.95)
+		gl.Rect(x1, y1, x2, y1 + 1)
+		gl.Rect(x1, y2 - 1, x2, y2)
+		gl.Rect(x1, y1, x1 + 1, y2)
+		gl.Rect(x2 - 1, y1, x2, y2)
+
+		gl41DirectButtonAreas[params.name] = {x1, y1, x2, y2}
+		labels[#labels + 1] = {params.label, (x1 + x2) * 0.5, y1 + (buttonHeight * 0.5) - (fontSize / 5)}
+		right = x1 - gap
 	end
 
-	if not buttonsArea[1] or not dlist.buttons then
-		return
+	font2:Begin(true)
+	font2:SetTextColor(1, 1, 1, 1)
+	font2:SetOutlineColor(0, 0, 0, 0.9)
+	for _, label in ipairs(labels) do
+		font2:Print(label[1], label[2], label[3], fontSize, 'co')
 	end
-
-	UiElement(buttonsArea[1], buttonsArea[2], buttonsArea[3], buttonsArea[4], 0, 0, 0, 1, nil, nil, nil, nil, nil, nil, nil, nil)
+	font2:End()
 	glColor(1, 1, 1, 1)
-	glCallList(dlist.buttons)
 end
 
 local function drawTopbarButtonHighlights()
@@ -2178,6 +2216,17 @@ end
 
 function widget:MousePress(x, y, button)
 	if button == 1 then
+		if useGL41Core and not showQuitscreen then
+			for name, area in pairs(gl41DirectButtonAreas) do
+				if mathIsInRect(x, y, area[1], area[2], area[3], area[4]) then
+					if playSounds then
+						Spring.PlaySoundFile(leftclick, 0.75, 'ui')
+					end
+					applyButtonAction(name)
+					return true
+				end
+			end
+		end
 		if showQuitscreen and quitscreenArea then
 			if mathIsInRect(x, y, quitscreenArea[1], quitscreenArea[2], quitscreenArea[3], quitscreenArea[4]) then
 				if (gameIsOver or not chobbyLoaded or not spec) and mathIsInRect(x, y, quitscreenStayArea[1], quitscreenStayArea[2], quitscreenStayArea[3], quitscreenStayArea[4]) then
@@ -2317,7 +2366,7 @@ function widget:Initialize()
 	gameFrame = sp.GetGameFrame()
 	Spring.SendCommands("resbar 0")
 	if useGL41Core then
-		Spring.Echo("[Top Bar] GL41 direct settings/menu buttons active")
+		Spring.Echo("[Top Bar] GL41 immediate settings/menu controls active")
 	end
 
 	-- determine if we want to show comcounter

@@ -2,7 +2,7 @@
 
 //__DEFINES__
 
-//__ENGINEUNIFORMBUFFERDEFS__
+// InfoLOS uses only its own uniforms; avoid unused engine UBO injection on GL 4.1.
 
 layout (location = 0) in vec4 position; // [-1,1], [0,1] , xyuv
 

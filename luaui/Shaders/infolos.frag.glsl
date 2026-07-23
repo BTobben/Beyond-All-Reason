@@ -1,7 +1,7 @@
 #version 410 core
 //__DEFINES__
 
-//__ENGINEUNIFORMBUFFERDEFS__
+// InfoLOS uses only its own uniforms; avoid unused engine UBO injection on GL 4.1.
 uniform float time;
 uniform float outputAlpha;
 uniform vec2 losTexSize;

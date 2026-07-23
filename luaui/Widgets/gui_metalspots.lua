@@ -250,6 +250,7 @@ local function initGL4()
 	spotInstanceVBO.vertexVBO = spotVBO
 	spotInstanceVBO.VAO = InstanceVBOTable.makeVAOandAttach(spotInstanceVBO.vertexVBO, spotInstanceVBO.instanceVBO)
 	spotInstanceVBO.primitiveType = GL.TRIANGLES
+	spEcho("[Metalspots] GL41 shader initialized successfully")
 	return true
 end
 

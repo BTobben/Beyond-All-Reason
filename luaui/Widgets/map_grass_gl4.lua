@@ -19,6 +19,7 @@ function widget:GetInfo()
     license   = "GNU GPL, v2",
     layer     = -999999,
     enabled   = not isPotatoGpu,
+    depends   = { 'gl4' },
   }
 end
 

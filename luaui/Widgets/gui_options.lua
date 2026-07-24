@@ -6755,9 +6755,9 @@ function init()
 					end
 				end
 			end
-			if limitedRenderingPath then
-				Spring.Echo('[Options] GL41 font previews use the active UI font')
-			end
+		end
+		if limitedRenderingPath then
+			Spring.Echo('[Options] GL41 font previews use the active UI font')
 		end
 
 		options[getOptionByID('font')].options = fonts
@@ -6930,6 +6930,7 @@ function init()
 
 		local unsupportedOptionIDs = {
 			"cusgl4",
+			"msaa", "supersampling",
 			"ssao", "ssao_strength", "ssao_quality",
 			"bloomdeferred", "bloomdeferredbrightness", "bloomdeferred_quality",
 			"lighteffects", "lighteffects_headlights", "lighteffects_buildlights",

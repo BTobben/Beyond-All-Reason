@@ -153,7 +153,7 @@ local math_isInRect = math.isInRect
 
 local chobbyInterface, font, font2, font3, backgroundGuishader, currentGroupTab, windowList, optionButtonBackward, optionButtonForward
 local groupRect, titleRect, countDownOptionID, countDownOptionClock, sceduleOptionApply, checkedForWaterAfterGamestart, checkedWidgetDataChanges
-local savedConfig, forceUpdate, sliderValueChanged, selectOptionsList, showSelectOptions, prevSelectHover
+local savedConfig, forceUpdate, sliderValueChanged, selectOptionsList, showSelectOptions, showSelectOptionID, prevSelectHover
 local fontOption, draggingSlider, lastSliderSound, selectClickAllowHide, selectScrollOffset
 local guishaderWasActive = false
 local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
@@ -615,6 +615,41 @@ function getOptionByID(id)
 		end
 	end
 	return false
+end
+
+function OptionsWidgetCloseSelect()
+	showSelectOptions = nil
+	showSelectOptionID = nil
+	selectClickAllowHide = nil
+	selectScrollOffset = 0
+	optionSelect = {}
+end
+
+function OptionsWidgetGetOpenSelect()
+	if showSelectOptions == nil then
+		return nil
+	end
+
+	-- Option tables can be rebuilt while a select is open (for example when a
+	-- graphics preset toggles widgets). Keep the open select tied to its stable
+	-- ID instead of retaining a numeric index that may now point at a slider.
+	if showSelectOptionID ~= nil then
+		local currentIndex = getOptionByID(showSelectOptionID)
+		if currentIndex then
+			showSelectOptions = currentIndex
+		end
+	end
+
+	local option = options[showSelectOptions]
+	local button = optionButtons[showSelectOptions]
+	if option == nil or option.type ~= 'select' or type(option.options) ~= 'table' or button == nil
+			or (showSelectOptionID ~= nil and option.id ~= showSelectOptionID) then
+		OptionsWidgetCloseSelect()
+		return nil
+	end
+
+	showSelectOptionID = option.id
+	return option, button, showSelectOptions
 end
 
 function orderOptions()
@@ -1511,10 +1546,11 @@ function widget:DrawScreen()
 			end
 
 			-- draw select options
-			if showSelectOptions ~= nil then
+			local selectOption, selectButton = OptionsWidgetGetOpenSelect()
+			if selectOption ~= nil then
 
 				-- highlight all that are affected by presets
-				if options[showSelectOptions].id == 'preset' then
+				if selectOption.id == 'preset' then
 					for optionID, _ in pairs(presets.lowest) do
 						local optionKey = getOptionByID(optionID)
 						if optionHover[optionKey] ~= nil then
@@ -1523,14 +1559,14 @@ function widget:DrawScreen()
 					end
 				end
 
-				local oHeight = optionButtons[showSelectOptions][4] - optionButtons[showSelectOptions][2]
+				local oHeight = selectButton[4] - selectButton[2]
 				local oPadding = math.floor(4 * widgetScale)
-				local y = optionButtons[showSelectOptions][4] - oPadding
+				local y = selectButton[4] - oPadding
 				optionSelect = {}
 
 				-- count total items and clamp scroll offset
 				local numItems = 0
-				for _ in pairs(options[showSelectOptions].options) do
+				for _ in pairs(selectOption.options) do
 					numItems = numItems + 1
 				end
 				local maxVisible = math.min(numItems, 16)
@@ -1542,8 +1578,8 @@ function widget:DrawScreen()
 
 				-- get max text option width
 				local fontSize = oHeight * 0.85
-				local maxWidth = optionButtons[showSelectOptions][3] - optionButtons[showSelectOptions][1]
-				for i, option in pairs(options[showSelectOptions].options) do
+				local maxWidth = selectButton[3] - selectButton[1]
+				for i, option in pairs(selectOption.options) do
 					maxWidth = math.max(maxWidth, font:GetTextWidth(option .. '   ') * fontSize)
 				end
 				if selectOptionsList then
@@ -1554,35 +1590,35 @@ function widget:DrawScreen()
 				end
 				selectOptionsList = glCreateList(function()
 					local borderSize = math.max(1, math.floor(vsy / 900))
-					RectRound(optionButtons[showSelectOptions][1] - borderSize, yPos - oHeight - oPadding - borderSize, optionButtons[showSelectOptions][1] + maxWidth + borderSize, optionButtons[showSelectOptions][2] + borderSize, (optionButtons[showSelectOptions][4] - optionButtons[showSelectOptions][2]) * 0.1, 1, 1, 1, 1, { 0, 0, 0, 0.25 }, { 0, 0, 0, 0.25 })
-					RectRound(optionButtons[showSelectOptions][1], yPos - oHeight - oPadding, optionButtons[showSelectOptions][1] + maxWidth, optionButtons[showSelectOptions][2], (optionButtons[showSelectOptions][4] - optionButtons[showSelectOptions][2]) * 0.1, 1, 1, 1, 1, { 0.3, 0.3, 0.3, WG['guishader'] and 0.84 or 0.94 }, { 0.35, 0.35, 0.35, WG['guishader'] and 0.84 or 0.94 })
-					UiSelector(optionButtons[showSelectOptions][1], optionButtons[showSelectOptions][2], optionButtons[showSelectOptions][3], optionButtons[showSelectOptions][4])
+					RectRound(selectButton[1] - borderSize, yPos - oHeight - oPadding - borderSize, selectButton[1] + maxWidth + borderSize, selectButton[2] + borderSize, (selectButton[4] - selectButton[2]) * 0.1, 1, 1, 1, 1, { 0, 0, 0, 0.25 }, { 0, 0, 0, 0.25 })
+					RectRound(selectButton[1], yPos - oHeight - oPadding, selectButton[1] + maxWidth, selectButton[2], (selectButton[4] - selectButton[2]) * 0.1, 1, 1, 1, 1, { 0.3, 0.3, 0.3, WG['guishader'] and 0.84 or 0.94 }, { 0.35, 0.35, 0.35, WG['guishader'] and 0.84 or 0.94 })
+					UiSelector(selectButton[1], selectButton[2], selectButton[3], selectButton[4])
 
 					local i = 0
 					local vi = 0 -- visible index in the current scrollbar  
-					for k, option in pairs(options[showSelectOptions].options) do
+					for k, option in pairs(selectOption.options) do
 						i = i + 1
 						if i > selectScrollOffset and vi < maxVisible then
 							vi = vi + 1
 							local itemYPos = math.floor(y - (((oHeight + oPadding + oPadding) * vi) - oPadding))
-							optionSelect[#optionSelect + 1] = { math.floor(optionButtons[showSelectOptions][1]), math.floor(itemYPos - oHeight - oPadding), math.floor(optionButtons[showSelectOptions][1] + maxWidth), math.floor(itemYPos + oPadding) - 1, k }
+							optionSelect[#optionSelect + 1] = { math.floor(selectButton[1]), math.floor(itemYPos - oHeight - oPadding), math.floor(selectButton[1] + maxWidth), math.floor(itemYPos + oPadding) - 1, k }
 
 							if math_isInRect(mx, my, optionSelect[#optionSelect][1], optionSelect[#optionSelect][2], optionSelect[#optionSelect][3], optionSelect[#optionSelect][4]) then
-								UiSelectHighlight(optionButtons[showSelectOptions][1], math.floor(itemYPos - oHeight - oPadding), optionButtons[showSelectOptions][1] + maxWidth, math.floor(itemYPos + oPadding))
+								UiSelectHighlight(selectButton[1], math.floor(itemYPos - oHeight - oPadding), selectButton[1] + maxWidth, math.floor(itemYPos + oPadding))
 								if playSounds and (prevSelectHover == nil or prevSelectHover ~= i) then
 									Spring.PlaySoundFile(sounds.selectHoverClick, 0.04, 'ui')
 								end
 								prevSelectHover = k
 							end
-							if options[showSelectOptions].optionsFont and fontOption and fontOption[i] then
+							if selectOption.optionsFont and fontOption and fontOption[i] then
 								fontOption[i]:Begin()
 								fontOption[i]:SetOutlineColor(0,0,0,0.4)
-								fontOption[i]:Print(optionColor .. option, optionButtons[showSelectOptions][1] + 7, itemYPos - (oHeight / 2) - oPadding, fontSize, "no")
+								fontOption[i]:Print(optionColor .. option, selectButton[1] + 7, itemYPos - (oHeight / 2) - oPadding, fontSize, "no")
 								fontOption[i]:End()
 							else
 								font:Begin()
 								font:SetOutlineColor(0,0,0,0.4)
-								font:Print(optionColor .. option, optionButtons[showSelectOptions][1] + 7, itemYPos - (oHeight / 2) - oPadding, fontSize, "no")
+								font:Print(optionColor .. option, selectButton[1] + 7, itemYPos - (oHeight / 2) - oPadding, fontSize, "no")
 								font:End()
 							end
 						end
@@ -1591,10 +1627,10 @@ function widget:DrawScreen()
 					if numItems > 16 then
 						local sbWidth = math.max(3, math.floor(4 * widgetScale))
 						local dropY1 = yPos - oHeight - oPadding
-						local dropY2 = optionButtons[showSelectOptions][2]
+						local dropY2 = selectButton[2]
 						local dropH = dropY2 - dropY1
-						local sbX1 = optionButtons[showSelectOptions][1] + maxWidth - sbWidth
-						local sbX2 = optionButtons[showSelectOptions][1] + maxWidth
+						local sbX1 = selectButton[1] + maxWidth - sbWidth
+						local sbX2 = selectButton[1] + maxWidth
 						-- track
 						gl.Color(0.15, 0.15, 0.15, 0.85)
 						gl.Rect(sbX1, dropY1, sbX2, dropY2)
@@ -1608,8 +1644,8 @@ function widget:DrawScreen()
 					end
 				end)
 				if GL41OptionsCanUseGuishader() then
-					WG['guishader'].InsertScreenRect(optionButtons[showSelectOptions][1], optionButtons[showSelectOptions][2], optionButtons[showSelectOptions][3], optionButtons[showSelectOptions][4], 'options_select')
-					WG['guishader'].InsertScreenRect(optionButtons[showSelectOptions][1], yPos - oHeight - oPadding, optionButtons[showSelectOptions][1] + maxWidth, optionButtons[showSelectOptions][2], 'options_select_options')
+					WG['guishader'].InsertScreenRect(selectButton[1], selectButton[2], selectButton[3], selectButton[4], 'options_select')
+					WG['guishader'].InsertScreenRect(selectButton[1], yPos - oHeight - oPadding, selectButton[1] + maxWidth, selectButton[2], 'options_select_options')
 					WG['guishader'].insertRenderDlist(selectOptionsList)
 				else
 					glCallList(selectOptionsList)
@@ -1693,9 +1729,9 @@ function widget:KeyPress(key)
 		if showTextInput and inputText ~= '' then
 			clearChatInput()
 			return true
-		else
-			if showSelectOptions then
-				showSelectOptions = nil
+			else
+				if showSelectOptions then
+					OptionsWidgetCloseSelect()
 			else
 				show = false
 				cancelChatInput()
@@ -1815,9 +1851,10 @@ end
 function widget:MouseWheel(up, value)
 	local x, y = Spring.GetMouseState()
 	if show then
-		if showSelectOptions ~= nil then
+		local selectOption = OptionsWidgetGetOpenSelect()
+		if selectOption ~= nil then
 			local numItems = 0
-			for _ in pairs(options[showSelectOptions].options) do numItems = numItems + 1 end
+			for _ in pairs(selectOption.options) do numItems = numItems + 1 end
 			local maxVisible = math.min(numItems, 16)
 			if selectScrollOffset == nil then selectScrollOffset = 0 end
 			if up then
@@ -1870,8 +1907,7 @@ function mouseEvent(mx, my, button, release)
 							if not release then
 								currentGroupTab = group.id
 								startColumn = 1
-								showSelectOptions = nil
-								selectClickAllowHide = nil
+								OptionsWidgetCloseSelect()
 								if playSounds then
 									Spring.PlaySoundFile(sounds.paginatorClick, 0.9, 'ui')
 								end
@@ -1898,8 +1934,7 @@ function mouseEvent(mx, my, button, release)
 					if playSounds then
 						Spring.PlaySoundFile(sounds.paginatorClick, 0.6, 'ui')
 					end
-					showSelectOptions = nil
-					selectClickAllowHide = nil
+					OptionsWidgetCloseSelect()
 				end
 				if optionButtonBackward ~= nil and math_isInRect(mx, my, optionButtonBackward[1], optionButtonBackward[2], optionButtonBackward[3], optionButtonBackward[4]) then
 					startColumn = startColumn - maxShownColumns
@@ -1909,8 +1944,7 @@ function mouseEvent(mx, my, button, release)
 					if playSounds then
 						Spring.PlaySoundFile(sounds.paginatorClick, 0.6, 'ui')
 					end
-					showSelectOptions = nil
-					selectClickAllowHide = nil
+					OptionsWidgetCloseSelect()
 				end
 
 				-- apply new slider value
@@ -1922,18 +1956,18 @@ function mouseEvent(mx, my, button, release)
 				end
 
 				-- select option
-				if showSelectOptions ~= nil then
+				local selectOption, selectButton, selectIndex = OptionsWidgetGetOpenSelect()
+				if selectOption ~= nil then
 					for i, o in pairs(optionSelect) do
 						if math_isInRect(mx, my, o[1], o[2], o[3], o[4]) then
-							applyOptionValue(showSelectOptions, o[5])
+							applyOptionValue(selectIndex, o[5])
 							if playSounds then
 								Spring.PlaySoundFile(sounds.selectClick, 0.5, 'ui')
 							end
 						end
 					end
-					if selectClickAllowHide ~= nil or not math_isInRect(mx, my, optionButtons[showSelectOptions][1], optionButtons[showSelectOptions][2], optionButtons[showSelectOptions][3], optionButtons[showSelectOptions][4]) then
-						showSelectOptions = nil
-						selectClickAllowHide = nil
+					if selectClickAllowHide ~= nil or not math_isInRect(mx, my, selectButton[1], selectButton[2], selectButton[3], selectButton[4]) then
+						OptionsWidgetCloseSelect()
 					else
 						selectClickAllowHide = true
 					end
@@ -1992,6 +2026,7 @@ function mouseEvent(mx, my, button, release)
 								end
 								if showSelectOptions == nil then
 									showSelectOptions = i
+									showSelectOptionID = options[i].id
 									selectScrollOffset = 0
 								elseif showSelectOptions == i then
 									--showSelectOptions = nil

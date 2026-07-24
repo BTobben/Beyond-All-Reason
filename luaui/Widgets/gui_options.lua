@@ -6749,9 +6749,14 @@ function init()
 					fonts[#fonts + 1] = name
 					fontsFull[#fontsFull + 1] = string.sub(file, 7)
 					fontsn[name:lower()] = true
-					local fontScale = (0.5 + (vsx * vsy / 5700000))
-					fontOption[#fonts] = gl.LoadFont("fonts/" .. fontsFull[#fontsFull], 20 * fontScale, 5 * fontScale, 1.5)
+					if not limitedRenderingPath then
+						local fontScale = (0.5 + (vsx * vsy / 5700000))
+						fontOption[#fonts] = gl.LoadFont("fonts/" .. fontsFull[#fontsFull], 20 * fontScale, 5 * fontScale, 1.5)
+					end
 				end
+			end
+			if limitedRenderingPath then
+				Spring.Echo('[Options] GL41 font previews use the active UI font')
 			end
 		end
 

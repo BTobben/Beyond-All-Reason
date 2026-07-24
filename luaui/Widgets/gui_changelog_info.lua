@@ -59,6 +59,8 @@ local changelogLines = {}
 local totalChangelogLines = 0
 
 local showOnceMore = false        -- used because of GUI shader delay
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
+local loggedGL41DirectDraw = false
 
 local RectRound, UiElement, UiScroller, elementCorner
 
@@ -287,9 +289,18 @@ function widget:DrawScreen()
 	if show or showOnceMore then
 		gl.Texture(false)    -- some other widget left it on
 
-		-- draw the changelog panel
-		glCallList(changelogList)
-		if WG['guishader'] then
+		-- Core-profile display lists do not reliably execute the original
+		-- FlowUI geometry. Draw the same window function directly there.
+		if useGL41Core then
+			if not loggedGL41DirectDraw then
+				Spring.Echo("[Changelog Info] GL41 original panel direct-render active")
+				loggedGL41DirectDraw = true
+			end
+			DrawWindow()
+		else
+			glCallList(changelogList)
+		end
+		if WG['guishader'] and not useGL41Core then
 			if backgroundGuishader ~= nil then
 				glDeleteList(backgroundGuishader)
 			end

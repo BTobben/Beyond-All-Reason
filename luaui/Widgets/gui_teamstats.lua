@@ -117,6 +117,8 @@ local borderRemap = {left={"x","min",-1},right={"x","max",1},top={"y","max",1},b
 local RectRound, UiElement, elementCorner
 
 local font, font2, backgroundGuishader, gameStarted, bgpadding, gameover
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
+local loggedGL41DirectDraw = false
 
 local anonymousMode = Spring.GetModOptions().teamcolors_anonymous_mode
 local anonymousTeamColor = {Spring.GetConfigInt("anonymousColorR", 255)/255, Spring.GetConfigInt("anonymousColorG", 0)/255, Spring.GetConfigInt("anonymousColorB", 0)/255}
@@ -448,10 +450,12 @@ function widget:GameFrame(n,forceupdate)
 	sort(teamData,compareAllyTeams)
 	guiData.mainPanel.absSizes.y.min = guiData.mainPanel.absSizes.y.max - totalNumLines*lineHeight
 	prevNumLines = totalNumLines
-	glDeleteList(textDisplayList)
-	textDisplayList = glCreateList(ReGenerateTextDisplayList)
-	glDeleteList(backgroundDisplayList)
-	backgroundDisplayList = glCreateList(ReGenerateBackgroundDisplayList)
+	if not useGL41Core then
+		glDeleteList(textDisplayList)
+		textDisplayList = glCreateList(ReGenerateTextDisplayList)
+		glDeleteList(backgroundDisplayList)
+		backgroundDisplayList = glCreateList(ReGenerateBackgroundDisplayList)
+	end
 end
 
 
@@ -544,8 +548,10 @@ function widget:MouseMove(mx,my,dx,dy)
 	end
 	if selectedLine ~= newLine or selectedColumn ~= newColumn then
 		selectedLine, selectedColumn = newLine, newColumn
-		glDeleteList(backgroundDisplayList)
-		backgroundDisplayList = glCreateList(ReGenerateBackgroundDisplayList)
+		if not useGL41Core then
+			glDeleteList(backgroundDisplayList)
+			backgroundDisplayList = glCreateList(ReGenerateBackgroundDisplayList)
+		end
 	end
 end
 
@@ -565,7 +571,7 @@ local function DrawBackground()
 	gl.Color(0,0,0,WG['guishader'] and 0.8 or 0.85)
 	local x1,y1,x2,y2 = mathFloor(guiData.mainPanel.absSizes.x.min), mathFloor(guiData.mainPanel.absSizes.y.min), mathFloor(guiData.mainPanel.absSizes.x.max), mathFloor(guiData.mainPanel.absSizes.y.max)
 	UiElement(x1-bgpadding,y1-bgpadding,x2+bgpadding,y2+bgpadding, 1, 1, 1, 1, 1,1,1,1, WG.FlowUI.clampedOpacity)
-	if WG['guishader'] then
+	if WG['guishader'] and not useGL41Core then
 		if backgroundGuishader ~= nil then
 			glDeleteList(backgroundGuishader)
 		end
@@ -575,7 +581,9 @@ local function DrawBackground()
 		WG['guishader'].InsertDlist(backgroundGuishader,'teamstats_window')
 	end
 
-	if backgroundDisplayList then
+	if useGL41Core then
+		ReGenerateBackgroundDisplayList()
+	elseif backgroundDisplayList then
 		glCallList(backgroundDisplayList)
 	end
 end
@@ -584,17 +592,23 @@ local function DrawAllStats()
 	if not guiData.mainPanel.visible then
 		return
 	end
-	if textDisplayList then
+	if useGL41Core then
+		ReGenerateTextDisplayList()
+	elseif textDisplayList then
 		glCallList(textDisplayList)
 	end
 end
 
 function widget:DrawScreen()
 	if not guiData.mainPanel.visible then
-		if WG['guishader'] then
+		if WG['guishader'] and not useGL41Core then
 			WG['guishader'].RemoveDlist('teamstats_window')
 		end
 		return
+	end
+	if useGL41Core and not loggedGL41DirectDraw then
+		Spring.Echo("[TeamStats] GL41 original panel direct-render active")
+		loggedGL41DirectDraw = true
 	end
 
 	DrawBackground()

@@ -70,6 +70,8 @@ local glDeleteList = gl.DeleteList
 local RectRound, UiElement, elementCorner = WG.FlowUI.elementCorner
 
 local showOnceMore = false
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
+local loggedGL41DirectDraw = false
 
 local keybindColor = "\255\235\185\070"
 local titleColor = "\255\254\254\254"
@@ -359,8 +361,16 @@ function widget:DrawScreen()
 
 	if show or showOnceMore then
 		gl.Texture(false)	-- some other widget left it on
-		glCallList(keybinds)
-		if WG['guishader'] and backgroundGuishader == nil then
+		if useGL41Core then
+			if not loggedGL41DirectDraw then
+				Spring.Echo("[Keybind/Mouse Info] GL41 original panel direct-render active")
+				loggedGL41DirectDraw = true
+			end
+			drawWindow(lasttab)
+		else
+			glCallList(keybinds)
+		end
+		if WG['guishader'] and not useGL41Core and backgroundGuishader == nil then
 			backgroundGuishader = glCreateList(function()
 				-- background
 				RectRound(screenX, screenY - screenHeight, screenX + screenWidth, screenY, elementCorner, 0, 1, 1, 1)
@@ -408,10 +418,10 @@ local function mouseEvent(x, y, button, release)
 		else
 			for tab, tabrect in pairs(tabrects) do
 				if math_isInRect(x, y, tabrect[1], tabrect[2], tabrect[3], tabrect[4]) then
+					lasttab = tab
 					if keybinds then
 						gl.DeleteList(keybinds)
 					end
-					lasstab = tab
 					keybinds = gl.CreateList(drawWindow, tab)
 					if backgroundGuishader ~= nil then
 						if WG['guishader'] then

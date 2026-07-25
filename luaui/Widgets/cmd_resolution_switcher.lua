@@ -123,8 +123,13 @@ local function refreshScreenModes()
 				name = Spring.I18N('ui.resolutionswitcher.borderless'),
 				displayName = videoMode.displayName,
 				type = windowType.borderless,
-				width = videoMode.w,
-				height = videoMode.h,
+				x = x,
+				y = y,
+				-- A borderless window uses desktop coordinates and logical desktop
+				-- dimensions. The video mode can instead contain the physical Retina
+				-- resolution, which would create an oversized window on macOS.
+				width = w,
+				height = h,
 			}
 
 			tableInsert(screenModes, fullscreen)
@@ -221,7 +226,9 @@ local function changeScreenMode(index)
 	if screenMode.type == windowType.fullscreen then
 		Spring.SetWindowGeometry(screenMode.display, 0, 0, screenMode.width, screenMode.height, true, false)
 	elseif screenMode.type == windowType.borderless then
-		Spring.SetWindowGeometry(screenMode.display, screenMode.x or 0, screenMode.y or 0, screenMode.width, screenMode.height, true, true)
+		-- Borderless is a desktop-sized window, not an SDL fullscreen mode.
+		-- Recoil documents this combination as Fullscreen=0/WindowBorderless=1.
+		Spring.SetWindowGeometry(screenMode.display, screenMode.x or 0, screenMode.y or 0, screenMode.width, screenMode.height, false, true)
 	elseif screenMode.type == windowType.multimonitor then
 		Spring.SetWindowGeometry(screenMode.actualDisplay, screenMode.x or 0, screenMode.y or 0, screenMode.width, screenMode.height, false, true)
 	elseif screenMode.type == windowType.windowed then
@@ -267,11 +274,10 @@ function widget:Initialize()
 	end
 
 	WG['screenMode'].SetScreenMode = function(index)
-		local prevScreenmode = screenModeIndex
 		screenModeIndex = index
-		if screenModeIndex ~= prevScreenmode then
-			changeScreenMode(screenModeIndex)
-		end
+		-- Always apply an explicit selection. SelectedScreenMode can survive a
+		-- launcher or config change and no longer describe the actual SDL window.
+		changeScreenMode(screenModeIndex)
 	end
 end
 

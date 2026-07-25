@@ -6979,6 +6979,14 @@ function init()
 		Spring.SetConfigInt("cus2", 0)
 		Spring.SendCommands("luarules disablecusgl4")
 
+		-- The engine ground-decal shader does not compile in the reduced Core path.
+		-- Keep the full-renderer preference intact, but disable it for this runtime and
+		-- remove the option so graphics presets cannot repeatedly reload the shader.
+		local configuredGroundDecals = Spring.GetConfigInt("GroundDecals", 0)
+		Spring.SendCommands("GroundDecals 0")
+		Spring.SetConfigInt("GroundDecals", configuredGroundDecals)
+		Spring.Echo("[Options] GL41 unsupported engine ground decals disabled")
+
 		local unsupportedOptionIDs = {
 			"cusgl4",
 			"msaa", "supersampling",
@@ -6988,7 +6996,7 @@ function init()
 			"lighteffects_brightness", "lighteffects_radius",
 			"lighteffects_screenspaceshadows", "lighteffects_nanoparticlelights",
 			"distortioneffects",
-			"decalsgl4", "decalsgl4_lifetime",
+			"decals", "decalsgl4", "decalsgl4_lifetime",
 			"grass", "grassdistance",
 			"shadowslider", "shadows_opacity",
 		}

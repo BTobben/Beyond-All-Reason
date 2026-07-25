@@ -1815,13 +1815,23 @@ function NearestValue(table, number)
 	return table[smallestIndex]
 end
 
-function getSliderValue(draggingSlider, mx)
-	local sliderWidth = optionButtons[draggingSlider].sliderXpos[2] - optionButtons[draggingSlider].sliderXpos[1]
-	local value = (mx - optionButtons[draggingSlider].sliderXpos[1]) / sliderWidth
+function getSliderValue(draggingSliderID, mx)
+	local sliderIndex = getOptionByID(draggingSliderID)
+	local option = sliderIndex and options[sliderIndex]
+	local optionButton = sliderIndex and optionButtons[sliderIndex]
+	if option == nil or option.type ~= 'slider' or optionButton == nil or optionButton.sliderXpos == nil then
+		return nil
+	end
+
+	local sliderWidth = optionButton.sliderXpos[2] - optionButton.sliderXpos[1]
+	if sliderWidth == 0 then
+		return nil
+	end
+	local value = (mx - optionButton.sliderXpos[1]) / sliderWidth
 	local min, max
-	if options[draggingSlider].steps then
-		min, max = options[draggingSlider].steps[1], options[draggingSlider].steps[1]
-		for k, v in ipairs(options[draggingSlider].steps) do
+	if option.steps then
+		min, max = option.steps[1], option.steps[1]
+		for k, v in ipairs(option.steps) do
 			if v > max then
 				max = v
 			end
@@ -1830,8 +1840,11 @@ function getSliderValue(draggingSlider, mx)
 			end
 		end
 	else
-		min = options[draggingSlider].min
-		max = options[draggingSlider].max
+		min = option.min
+		max = option.max
+	end
+	if type(min) ~= 'number' or type(max) ~= 'number' then
+		return nil
 	end
 	value = min + ((max - min) * value)
 	if value < min then
@@ -1840,12 +1853,12 @@ function getSliderValue(draggingSlider, mx)
 	if value > max then
 		value = max
 	end
-	if options[draggingSlider].steps ~= nil then
-		value = NearestValue(options[draggingSlider].steps, value)
-	elseif options[draggingSlider].step ~= nil then
-		value = math.floor((value + (options[draggingSlider].step / 2)) / options[draggingSlider].step) * options[draggingSlider].step
+	if option.steps ~= nil then
+		value = NearestValue(option.steps, value)
+	elseif option.step ~= nil then
+		value = math.floor((value + (option.step / 2)) / option.step) * option.step
 	end
-	return value    -- is a string now :(
+	return value, sliderIndex
 end
 
 function widget:MouseWheel(up, value)
@@ -1869,10 +1882,10 @@ end
 
 function widget:MouseMove(mx, my)
 	if draggingSlider ~= nil then
-		local newValue = getSliderValue(draggingSlider, mx)
-		if options[draggingSlider].value ~= newValue then
+		local newValue, sliderIndex = getSliderValue(draggingSlider, mx)
+		if newValue ~= nil and options[sliderIndex].value ~= newValue then
 			sliderValueChanged = true
-			applyOptionValue(draggingSlider, newValue)    -- disabled so only on release it gets applied
+			applyOptionValue(sliderIndex, newValue)    -- disabled so only on release it gets applied
 			if playSounds and (lastSliderSound == nil or os_clock() - lastSliderSound > 0.04) then
 				lastSliderSound = os_clock()
 				Spring.PlaySoundFile(sounds.sliderDrag, 0.4, 'ui')
@@ -1949,7 +1962,10 @@ function mouseEvent(mx, my, button, release)
 
 				-- apply new slider value
 				if draggingSlider ~= nil then
-					applyOptionValue(draggingSlider, getSliderValue(draggingSlider, mx))
+					local newValue, sliderIndex = getSliderValue(draggingSlider, mx)
+					if newValue ~= nil then
+						applyOptionValue(sliderIndex, newValue)
+					end
 					draggingSlider = nil
 					draggingSliderPreDragValue = nil
 					return
@@ -2010,11 +2026,11 @@ function mouseEvent(mx, my, button, release)
 							if not options[i] then
 								-- skip: options table was rebuilt and this index is stale
 							elseif options[i].type == 'slider' and o.sliderXpos and (math_isInRect(mx, my, o.sliderXpos[1], o[2], o.sliderXpos[2], o[4]) or math_isInRect(mx, my, o[1], o[2], o[3], o[4])) then
-								draggingSlider = i
-								draggingSliderPreDragValue = options[draggingSlider].value
-								local newValue = getSliderValue(draggingSlider, mx)
-								if options[draggingSlider].value ~= newValue then
-									applyOptionValue(draggingSlider, getSliderValue(draggingSlider, mx))    -- disabled so only on release it gets applied
+								draggingSlider = options[i].id
+								draggingSliderPreDragValue = options[i].value
+								local newValue, sliderIndex = getSliderValue(draggingSlider, mx)
+								if newValue ~= nil and options[sliderIndex].value ~= newValue then
+									applyOptionValue(sliderIndex, newValue)    -- disabled so only on release it gets applied
 									if playSounds then
 										Spring.PlaySoundFile(sounds.sliderDrag, 0.3, 'ui')
 									end

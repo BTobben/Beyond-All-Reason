@@ -41,11 +41,22 @@ if Spring.GetMenuName and string.find(string.lower(Spring.GetMenuName()), 'chobb
   chobbyLoaded = true
 end
 
+-- Standalone packages without a LuaMenu must keep the game-over screens open:
+-- quitting there closes the complete application instead of returning to a lobby.
+-- Preserve the existing behaviour everywhere unless the package explicitly opts out.
+local autoQuitWithoutMenu = Spring.GetConfigInt("AutoQuitWithoutMenu", 1) == 1
+local autoQuitEnabled = chobbyLoaded or autoQuitWithoutMenu
+
 function widget:Initialize()
   endTime = false
 end
 
 function widget:GameOver()
+  if not autoQuitEnabled then
+    Echo("<autoquit> Automatic quit disabled without a loaded menu; game-over screens remain available.")
+    return
+  end
+
   endTime = GetTimer()
   mx,my = GetMouseState()
   Echo("<autoquit> Automatically exiting in " .. delay .. " seconds. Move mouse to postpone the quit for "..mousemovedDelay.." seconds")

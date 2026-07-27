@@ -725,6 +725,25 @@ function widget:Initialize()
 
 	hasBadCulling = ((Platform.gpuVendor == "AMD" and Platform.osFamily == "Linux") == false)
 	--spEcho(gsSrc)
+	if Platform.glUseGL41Core then
+		-- Uniform blocks are core in OpenGL 4.1. Apple's driver therefore does
+		-- not advertise ARB_uniform_buffer_object as an extension, while
+		-- ARB_shading_language_420pack is genuinely unavailable. The engine's
+		-- GL4.1 UBO definitions deliberately omit explicit binding qualifiers,
+		-- so neither extension directive is needed on this route.
+		local function StripGL41ExtensionRequirements(source)
+			source = source:gsub("#extension GL_ARB_uniform_buffer_object : require\n", "")
+			source = source:gsub("#extension GL_ARB_shading_language_420pack: require\n", "")
+			return source
+		end
+
+		vsSrc = StripGL41ExtensionRequirements(vsSrc)
+		vsSrcNoGS = StripGL41ExtensionRequirements(vsSrcNoGS)
+		gsSrc = StripGL41ExtensionRequirements(gsSrc)
+		fsSrc = StripGL41ExtensionRequirements(fsSrc)
+		vsSrcDeferred = StripGL41ExtensionRequirements(vsSrcDeferred)
+	end
+
 	local engineUniformBufferDefs = LuaShader.GetEngineUniformBufferDefs()
 	vsSrc = vsSrc:gsub("//__ENGINEUNIFORMBUFFERDEFS__", engineUniformBufferDefs)
 	gsSrc = gsSrc:gsub("//__ENGINEUNIFORMBUFFERDEFS__", engineUniformBufferDefs)

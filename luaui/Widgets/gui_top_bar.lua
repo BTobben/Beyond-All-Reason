@@ -1375,6 +1375,13 @@ end
 -- --- OPTIMIZATION: Pre-defined function for RenderToTexture to avoid creating a closure.
 local function clearFn() end  -- no-op used for pre-clearing regions in uiTex
 local function renderResbarText()
+	-- The GL4.1 Core path renders resource text together with the bars below.
+	-- Keeping it in the render-to-texture pass would leave stale copies behind
+	-- and would draw the same labels twice.
+	if useGL41Core then
+		return
+	end
+
 	glTranslate(-1, -1, 0)
 	glScale(2 / (topbarArea[3]-topbarArea[1]), 2 / (topbarArea[4]-topbarArea[2]),	0)
 	glTranslate(-topbarArea[1], -topbarArea[2], 0)
@@ -1402,8 +1409,91 @@ local function renderResbarText()
 	end
 end
 
+local function drawGL41ResourceBar(res)
+	local info = resbarDrawinfo[res]
+	if not info or not info.barArea then
+		return
+	end
+
+	local area = resbarArea[res]
+	local barArea = info.barArea
+	local barHeight = barArea[4] - barArea[2]
+	local barWidth = barArea[3] - barArea[1]
+	local storage = mathMax(1, smoothedResources[res][2] or r[res][2] or 1)
+	local current = mathMax(0, smoothedResources[res][1] or r[res][1] or 0)
+	local ratio = mathMin(1, current / storage)
+	local valueWidth = mathMax(barHeight * 0.2, barWidth * ratio)
+	local radius = barHeight * 0.25
+
+	glBlending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+
+	-- Resource icon. This used to live only inside a display list, which does
+	-- not exist in an OpenGL Core context.
+	local iconPadding = mathFloor((area[4] - area[2]) / 7)
+	local iconSize = mathFloor(area[4] - area[2] - iconPadding - iconPadding)
+	local iconTexSize = mathFloor(iconSize * 2)
+	local iconSkewShift = 0
+	if res == 'metal' and cfg.useSkew then
+		iconSkewShift = mathFloor((area[4] - area[2]) * skewTan * 0.5)
+	end
+	glColor(1, 1, 1, 1)
+	glTexture(res == 'metal'
+		and (":lr" .. iconTexSize .. "," .. iconTexSize .. ":LuaUI/Images/metal.png")
+		or  (":lr" .. iconTexSize .. "," .. iconTexSize .. ":LuaUI/Images/energy.png"))
+	glTexRect(
+		area[1] + iconPadding + iconSkewShift,
+		area[2] + iconPadding,
+		area[1] + iconPadding + iconSkewShift + iconSize,
+		area[4] - iconPadding
+	)
+	glTexture(false)
+
+	-- Dark storage channel and the live metal/energy fill.
+	RectRound(barArea[1] - 1, barArea[2] - 1, barArea[3] + 1, barArea[4] + 1,
+		radius, 1, 1, 1, 1, {0.03, 0.03, 0.03, 0.88}, {0.17, 0.17, 0.17, 0.72})
+	if res == 'metal' then
+		RectRound(barArea[1], barArea[2], barArea[1] + valueWidth, barArea[4],
+			radius, 1, 1, 1, 1, {0.46, 0.47, 0.48, 1}, {0.94, 0.95, 0.96, 1})
+	else
+		RectRound(barArea[1], barArea[2], barArea[1] + valueWidth, barArea[4],
+			radius, 1, 1, 1, 1, {0.48, 0.40, 0.0, 1}, {0.98, 0.88, 0.08, 1})
+	end
+
+	-- Preserve the original interactive slider controls.
+	if res == 'energy' and conversionIndicatorArea and conversionIndicatorArea[1] and conversionIndicatorArea[3] then
+		UiSliderKnob(
+			mathFloor((conversionIndicatorArea[1] + conversionIndicatorArea[3]) * 0.5),
+			mathFloor((conversionIndicatorArea[2] + conversionIndicatorArea[4]) * 0.5),
+			mathFloor((conversionIndicatorArea[3] - conversionIndicatorArea[1]) * 0.5),
+			{0.95, 0.95, 0.7, 1}
+		)
+	end
+	if not isSingle and shareIndicatorArea[res] and shareIndicatorArea[res][1] and shareIndicatorArea[res][3] then
+		local slider = shareIndicatorArea[res]
+		UiSliderKnob(
+			mathFloor((slider[1] + slider[3]) * 0.5),
+			mathFloor((slider[2] + slider[4]) * 0.5),
+			mathFloor((slider[3] - slider[1]) * 0.5),
+			{0.85, 0, 0, 1}
+		)
+	end
+
+	-- These values were previously cached in an R2T that depended on legacy
+	-- display lists. Drawing them here keeps the whole resource panel live.
+	drawResbarValue(res)
+	drawResbarPullIncome(res)
+	drawResbarStorage(res)
+	glColor(1, 1, 1, 1)
+end
+
 local function drawResBars()
 	if not showResourceBars then
+		return
+	end
+
+	if useGL41Core then
+		drawGL41ResourceBar('metal')
+		drawGL41ResourceBar('energy')
 		return
 	end
 

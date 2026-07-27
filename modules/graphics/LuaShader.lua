@@ -304,6 +304,12 @@ vec4 waterBlend(float fragmentheight){
 		waterMinColorR, waterMinColorG, waterMinColorB,
 		waterBaseColorR, waterBaseColorG, waterBaseColorB
 	)
+	if Platform and Platform.glUseGL41Core then
+		-- GLSL 4.10 has uniform blocks but not the GLSL 4.20 `binding` layout
+		-- qualifier. Recoil binds both named engine blocks immediately after
+		-- linking on this route, so the block contents remain identical.
+		eubs = eubs:gsub("layout%(std140, binding = %d%)", "layout(std140)")
+	end
 
     return eubs .. waterUniforms
 end

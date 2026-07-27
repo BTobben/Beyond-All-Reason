@@ -2,6 +2,14 @@ if not Spring.Utilities.IsDevMode() then -- and not Spring.Utilities.ShowDevUI()
 	return
 end
 
+-- The GL4.1 compatibility package uses unpacked game data and therefore looks
+-- like a development checkout. Avoid polling all engine shaders during normal
+-- matches unless development tools were explicitly requested.
+if Spring.GetConfigString("OpenGLFeatureLevel", "auto") == "gl41"
+		and Spring.GetConfigInt("GL41EnableDevTools", 0) ~= 1 then
+	return
+end
+
 local widget = widget ---@type Widget
 
 function widget:GetInfo()

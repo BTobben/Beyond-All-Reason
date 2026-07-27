@@ -2,6 +2,15 @@ if not Spring.Utilities.IsDevMode() then
 	return
 end
 
+-- The GL4.1 compatibility package uses unpacked game data and therefore looks
+-- like a development checkout. In single-player, keep the synced polling
+-- reloader opt-in so it does not repeatedly read every gadget during a match.
+if Spring.Utilities.Gametype.IsSinglePlayer()
+		and Spring.GetConfigString("OpenGLFeatureLevel", "auto") == "gl41"
+		and Spring.GetConfigInt("GL41EnableDevTools", 0) ~= 1 then
+	return
+end
+
 local gadget = gadget ---@type Gadget
 
 function gadget:GetInfo()

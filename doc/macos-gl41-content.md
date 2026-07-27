@@ -43,6 +43,15 @@ still require runtime verification. Vulkan through MoltenVK/Metal remains a
 possible long-term renderer direction and is outside this compatibility
 change.
 
+## Development tools in unpacked builds
+
+The experimental app runs BAR from an unpacked `.sdd` directory, which makes
+`Spring.Utilities.IsDevMode()` true. On the reduced GL 4.1 route, polling
+widget, gadget, and engine-shader reloaders plus the per-frame test harness are
+therefore disabled by default. Set `GL41EnableDevTools=1` when those development
+tools are deliberately needed; normal full-renderer development checkouts keep
+their existing behavior.
+
 ## One-command native build
 
 The paired RecoilEngine branch contains `macos-build-bar.sh`. On the Mac it

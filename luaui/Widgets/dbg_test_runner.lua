@@ -1,3 +1,11 @@
+-- The GL4.1 compatibility package uses unpacked game data and therefore looks
+-- like a development checkout. Do not install the per-frame test harness in a
+-- normal match unless development tools were explicitly requested.
+if Spring.GetConfigString("OpenGLFeatureLevel", "auto") == "gl41"
+		and Spring.GetConfigInt("GL41EnableDevTools", 0) ~= 1 then
+	return
+end
+
 local widget = widget ---@type Widget
 
 function widget:GetInfo()

@@ -1,18 +1,41 @@
 local Spring = Spring
 local alwaysColor, losColor, radarColor, jamColor, radarColor2 = Spring.GetLosViewColors()
+local useGL41Core = Spring.GetConfigString("OpenGLFeatureLevel", "auto") == "gl41"
+
+local vertexShader = useGL41Core and [[#version 410 core
+	layout(location = 0) in vec2 pos;
+	layout(location = 1) in vec2 uv;
+	out vec2 texCoord;
+
+	void main() {
+		texCoord = uv;
+		gl_Position = vec4(pos, 0.0, 1.0);
+	}
+]] or [[#version 130
+	varying vec2 texCoord;
+	void main() {
+		texCoord = gl_MultiTexCoord0.st;
+		gl_Position = vec4(gl_Vertex.xyz, 1.0);
+	}
+]]
+
+local fragmentHeader = useGL41Core and [[#version 410 core
+	in vec2 texCoord;
+	layout(location = 0) out vec4 fragColor;
+	#define SAMPLE_2D texture
+	#define FRAG_COLOR fragColor
+]] or [[#version 130
+	varying vec2 texCoord;
+	#define SAMPLE_2D texture2D
+	#define FRAG_COLOR gl_FragColor
+]]
 
 return {
 	definitions = {
 		Spring.GetConfigInt("HighResInfoTexture") and "#define HIGH_QUALITY" or "",
 	},
-	vertex = [[#version 130
-		varying vec2 texCoord;
-		void main() {
-			texCoord = gl_MultiTexCoord0.st;
-			gl_Position = vec4(gl_Vertex.xyz, 1.0);
-		}
-	]],
-	fragment = [[#version 130
+	vertex = vertexShader,
+	fragment = fragmentHeader .. [[
 	#ifdef HIGH_QUALITY
 		//#extension GL_ARB_texture_query_lod : enable
 	#endif
@@ -26,7 +49,6 @@ return {
 		uniform sampler2D tex1;
 		uniform sampler2D tex2;
 		uniform sampler2D tex3;
-		varying vec2 texCoord;
 	#ifdef HIGH_QUALITY
 		//! source: http://www.ozone3d.net/blogs/lab/20110427/glsl-random-generator/
 		float rand(const in vec2 n)
@@ -43,13 +65,13 @@ return {
 				// previously, offset was identical for all pixels, resulting in little gain from multisampling, makes offsets random for each texel fetch
 				vec2 off = vec2(time + float(i) * 0.234567); 
 				off = (vec2(rand(p.st + off.st), rand(p.ts - off.ts)) * 2.0 - 1.0) / texSize;
-				c += texture2D(tex, p + off);
+				c += SAMPLE_2D(tex, p + off);
 			}
 			c *= 0.25;
 			return smoothstep(0.5, 1.0, c);
 		}
 	#else
-		#define getTexel texture2D
+		#define getTexel SAMPLE_2D
 	#endif
 
 		float diagLines(vec2 uv) {
@@ -81,13 +103,13 @@ return {
 			// Diagonal lines are drawn by the GL4 widget gfx_fog_diaglines_gl4
 			// in screen space, which keeps them sharp at all zoom levels.
 			// Here we just paint the flat fog color.
-			gl_FragColor = alwaysColor;
+			FRAG_COLOR = alwaysColor;
 
 			// Radar
 			// radarColor2 is the color of ground covered by radar.
 			vec4 tex2Texel = getTexel(tex2, texCoord);
 			float radar = tex2Texel.r;
-			gl_FragColor = max(gl_FragColor, radarColor2 * radar);
+			FRAG_COLOR = max(FRAG_COLOR, radarColor2 * radar);
 
 			// Line of sight (LOS), the higest level of intel
 			// losColor is the color of ground covered by direct vison (LOS).
@@ -95,7 +117,7 @@ return {
 			float groundlos = getTexel(tex0, texCoord).r;
 			float airlos = getTexel(tex1, texCoord).r;
 			float losCombined = mix(groundlos, airlos, 0.2);
-			gl_FragColor = max(gl_FragColor, losColor * losCombined);
+			FRAG_COLOR = max(FRAG_COLOR, losColor * losCombined);
 
 			// Radar jamming
 			// Unlike the other cases, we add the jamming color instead of taking the maximum.
@@ -103,10 +125,10 @@ return {
 			// blue and green, then this will give a red jamming color while maintaining a similar
 			// lighting intensity.
 			float jamming = tex2Texel.g;
-			gl_FragColor += jamColor * jamming;
+			FRAG_COLOR += jamColor * jamming;
 
 			// Finally, make sure nothing has changed our desired alpha value.
-			gl_FragColor.a = 0.03;
+			FRAG_COLOR.a = 0.03;
 		}
 	]],
 	uniformFloat = {

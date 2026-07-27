@@ -9,6 +9,7 @@ function widget:GetInfo()
 		license = "GNU GPL v2",
 		layer   = 2,
 		enabled = true,
+		depends = {'gl4'},
 	}
 end
 

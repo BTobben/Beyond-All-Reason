@@ -75,6 +75,7 @@ local glScale = gl.Scale
 local glTranslate = gl.Translate
 local glVertex = gl.Vertex
 local LuaShader = gl.LuaShader
+local useGL41Core = Platform ~= nil and Platform.glUseGL41Core == true
 
 local GL_LINES = GL.LINES
 local GL_LINE_LOOP = GL.LINE_LOOP
@@ -1745,7 +1746,9 @@ local WeaponTypeHandlers = {
 --------------------------------------------------------------------------------
 function widget:Initialize()
 	-- shader has to be created before setting up unit defs
-	napalmShader = LuaShader.CheckShaderUpdates(shaderSourceCache, 0)
+	if not useGL41Core then
+		napalmShader = LuaShader.CheckShaderUpdates(shaderSourceCache, 0)
+	end
 	for unitDefID, unitDef in pairs(UnitDefs) do
 		SetupUnitDef(unitDefID, unitDef)
 	end

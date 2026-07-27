@@ -9,7 +9,8 @@ function widget:GetInfo()
 		date = "20211020",
 		license = "GNU GPL, v2 or later",
 		layer = 20, -- below most GUI elements, which generally go up to 10
-		enabled = true
+		enabled = true,
+		depends = {'gl4'},
 	}
 end
 

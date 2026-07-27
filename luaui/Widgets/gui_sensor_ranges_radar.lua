@@ -8,7 +8,8 @@ function widget:GetInfo()
 		date = "2021.06.18",
 		license = "GPLv2, (c) Beherith (mysterme@gmail.com)",
 		layer = 19,
-		enabled = true
+		enabled = true,
+		depends = {'gl4'},
 	}
 end
 
